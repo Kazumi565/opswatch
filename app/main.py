@@ -1,10 +1,14 @@
+import time
+
 from config import settings
 from deps import get_db
 from fastapi import Depends, FastAPI, HTTPException
 from models import Monitor
+from prometheus_client import Counter, Histogram
 from redis import Redis
 from routes.incidents import router as incidents_router
 from routes.maintenance import router as maintenance_router
+from routes.metrics import router as metrics_router
 from routes.overview import router as overview_router
 from routes.runs import router as runs_router
 from routes.stats import router as stats_router
@@ -15,6 +19,18 @@ from schemas import MonitorCreate, MonitorOut, MonitorUpdate
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+HTTP_REQUESTS = Counter(
+    "opswatch_http_requests_total",
+    "Total HTTP requests",
+    ["method", "path", "status"],
+)
+
+HTTP_LATENCY = Histogram(
+    "opswatch_http_request_duration_seconds",
+    "HTTP request latency in seconds",
+    ["method", "path"],
+)
+
 app = FastAPI(title="OpsWatch API", version="0.1.0")
 app.include_router(incidents_router)
 app.include_router(summary_router)
@@ -23,6 +39,24 @@ app.include_router(stats_router)
 app.include_router(overview_router)
 app.include_router(status_router)
 app.include_router(maintenance_router)
+app.include_router(metrics_router)
+
+
+@app.middleware("http")
+async def prometheus_middleware(request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+
+    # Keep labels low-cardinality (paths are OK here since your API paths are stable)
+    route = request.scope.get("route")
+    path = getattr(route, "path", request.url.path)
+    method = request.method
+    status = str(response.status_code)
+
+    HTTP_REQUESTS.labels(method=method, path=path, status=status).inc()
+    HTTP_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - start)
+
+    return response
 
 
 @app.get("/health")
