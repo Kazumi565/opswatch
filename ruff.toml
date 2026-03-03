@@ -1,0 +1,17 @@
+# ruff.toml
+line-length = 100
+target-version = "py312"
+
+extend-exclude = [
+  ".venv",
+  "alembic/versions",
+  "**/__pycache__",
+]
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"] # handled by formatter / line-length
+
+[format]
+quote-style = "double"
+indent-style = "space"
