@@ -1,4 +1,8 @@
 services:
+  worker:
+    ports:
+      - "9101:9101"
+
   prometheus:
     image: prom/prometheus:latest
     profiles: ["observability"]
@@ -17,8 +21,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     ports:
       - "3000:3000"
     depends_on:
