@@ -52,12 +52,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Trivy FS scan (fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.34.1
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: 0
+      - name: Trivy FS scan (report-only)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            aquasec/trivy:0.69.1 \
+            fs /repo \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --format table \
+            --exit-code 0
