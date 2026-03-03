@@ -1,11 +1,11 @@
-from datetime import datetime, timezone
-from sqlalchemy import or_, select, text
+from datetime import UTC, datetime
 
 from opswatch_worker.models import CheckRun, MaintenanceWindow, Monitor
+from sqlalchemy import or_, select, text
 
 
 def now_utc():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def evaluate_incident(db, monitor_id: int) -> None:

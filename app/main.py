@@ -1,20 +1,19 @@
-from fastapi import FastAPI, Depends, HTTPException
-from redis import Redis
-from rq import Queue
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-from routes.incidents import router as incidents_router
-from routes.summary import router as summary_router
-from routes.runs import router as runs_router
-from routes.stats import router as stats_router
-from routes.overview import router as overview_router
-from routes.status import router as status_router
-from routes.maintenance import router as maintenance_router
-
 from config import settings
 from deps import get_db
-from models import Monitor, Incident
-from schemas import MonitorCreate, MonitorOut, MonitorUpdate, IncidentOut
+from fastapi import Depends, FastAPI, HTTPException
+from models import Monitor
+from redis import Redis
+from routes.incidents import router as incidents_router
+from routes.maintenance import router as maintenance_router
+from routes.overview import router as overview_router
+from routes.runs import router as runs_router
+from routes.stats import router as stats_router
+from routes.status import router as status_router
+from routes.summary import router as summary_router
+from rq import Queue
+from schemas import MonitorCreate, MonitorOut, MonitorUpdate
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 app = FastAPI(title="OpsWatch API", version="0.1.0")
 app.include_router(incidents_router)
@@ -25,12 +24,14 @@ app.include_router(overview_router)
 app.include_router(status_router)
 app.include_router(maintenance_router)
 
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
 # ---- Monitors ----
+
 
 @app.post("/api/monitors", response_model=MonitorOut, status_code=201)
 def create_monitor(payload: MonitorCreate, db: Session = Depends(get_db)):
@@ -89,6 +90,3 @@ def enqueue_check(monitor_id: int, db: Session = Depends(get_db)):
     q = Queue("checks", connection=redis_conn)
     job = q.enqueue("opswatch_worker.jobs.run_check", monitor_id)
     return {"job_id": job.id}
-
-
-

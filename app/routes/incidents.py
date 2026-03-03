@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from deps import get_db
+from fastapi import APIRouter, Depends, HTTPException
 from models import Incident
 from schemas import IncidentOut
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 
@@ -16,11 +15,7 @@ def clamp_limit(limit: int) -> int:
 @router.get("", response_model=list[IncidentOut])
 def list_incidents(limit: int = 100, db: Session = Depends(get_db)):
     limit = clamp_limit(limit)
-    stmt = (
-        select(Incident)
-        .order_by(Incident.opened_at.desc(), Incident.id.desc())
-        .limit(limit)
-    )
+    stmt = select(Incident).order_by(Incident.opened_at.desc(), Incident.id.desc()).limit(limit)
     return list(db.scalars(stmt).all())
 
 

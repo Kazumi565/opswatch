@@ -1,11 +1,11 @@
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from datetime import UTC, datetime
 
 from deps import get_db
+from fastapi import APIRouter, Depends, HTTPException
 from models import MaintenanceWindow, Monitor
 from schemas import MaintenanceCreate, MaintenanceOut
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
 
@@ -29,13 +29,15 @@ def create_window(payload: MaintenanceCreate, db: Session = Depends(get_db)):
 
 @router.get("", response_model=list[MaintenanceOut])
 def list_windows(active: bool = False, db: Session = Depends(get_db)):
-    stmt = select(MaintenanceWindow).order_by(MaintenanceWindow.starts_at.desc(), MaintenanceWindow.id.desc())
+    stmt = select(MaintenanceWindow).order_by(
+        MaintenanceWindow.starts_at.desc(), MaintenanceWindow.id.desc()
+    )
     rows = list(db.scalars(stmt).all())
 
     if not active:
         return rows
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return [w for w in rows if w.starts_at <= now <= w.ends_at]
 
 

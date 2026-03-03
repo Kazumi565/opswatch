@@ -1,11 +1,10 @@
-from datetime import datetime, timedelta, timezone
-
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from datetime import UTC, datetime, timedelta
 
 from deps import get_db
+from fastapi import APIRouter, Depends, HTTPException
 from models import CheckRun, Monitor
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api", tags=["stats"])
 
@@ -40,24 +39,34 @@ def monitor_stats(
     if not m:
         raise HTTPException(status_code=404, detail="Monitor not found")
 
-    end = datetime.now(timezone.utc)
+    end = datetime.now(UTC)
     start = end - timedelta(minutes=minutes)
 
     # counts
-    total = db.scalar(
-        select(func.count()).select_from(CheckRun).where(
-            CheckRun.monitor_id == monitor_id,
-            CheckRun.started_at >= start,
+    total = (
+        db.scalar(
+            select(func.count())
+            .select_from(CheckRun)
+            .where(
+                CheckRun.monitor_id == monitor_id,
+                CheckRun.started_at >= start,
+            )
         )
-    ) or 0
+        or 0
+    )
 
-    success_count = db.scalar(
-        select(func.count()).select_from(CheckRun).where(
-            CheckRun.monitor_id == monitor_id,
-            CheckRun.started_at >= start,
-            CheckRun.success.is_(True),
+    success_count = (
+        db.scalar(
+            select(func.count())
+            .select_from(CheckRun)
+            .where(
+                CheckRun.monitor_id == monitor_id,
+                CheckRun.started_at >= start,
+                CheckRun.success.is_(True),
+            )
         )
-    ) or 0
+        or 0
+    )
 
     failure_count = total - success_count
     uptime_pct = (success_count / total * 100.0) if total else None
@@ -77,7 +86,12 @@ def monitor_stats(
     p95 = percentile(durations, 95)
 
     return {
-        "monitor": {"id": m.id, "name": m.name, "type": m.type.value if hasattr(m.type, "value") else str(m.type), "target": m.target},
+        "monitor": {
+            "id": m.id,
+            "name": m.name,
+            "type": m.type.value if hasattr(m.type, "value") else str(m.type),
+            "target": m.target,
+        },
         "window": {"minutes": minutes, "start": start.isoformat(), "end": end.isoformat()},
         "runs": {
             "total": total,

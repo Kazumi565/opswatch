@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from deps import get_db
+from fastapi import APIRouter, Depends, HTTPException
 from models import CheckRun, Monitor
 from schemas import CheckRunOut
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api", tags=["runs"])
 

@@ -1,9 +1,8 @@
+from deps import get_db
 from fastapi import APIRouter, Depends
+from models import Incident, Monitor
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-
-from deps import get_db
-from models import Monitor, Incident
 
 router = APIRouter(prefix="/api", tags=["summary"])
 
@@ -21,7 +20,13 @@ def summary(db: Session = Depends(get_db)):
 
     # Optional: list the newest open incidents (lightweight, useful for UI)
     latest_open = db.execute(
-        select(Incident.id, Incident.monitor_id, Incident.opened_at, Incident.failure_count, Incident.last_error)
+        select(
+            Incident.id,
+            Incident.monitor_id,
+            Incident.opened_at,
+            Incident.failure_count,
+            Incident.last_error,
+        )
         .where(Incident.status == "open")
         .order_by(Incident.opened_at.desc(), Incident.id.desc())
         .limit(10)

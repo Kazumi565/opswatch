@@ -1,13 +1,11 @@
-from datetime import datetime, timedelta, timezone
-
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from datetime import UTC, datetime, timedelta
 
 from deps import get_db
+from fastapi import APIRouter, Depends
 from models import CheckRun, Incident, MaintenanceWindow, Monitor
 from schemas import OverviewOut
-
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
@@ -28,7 +26,7 @@ def percentile(values: list[int], p: float) -> int | None:
 def overview(minutes: int = 60, db: Session = Depends(get_db)):
     minutes = clamp_minutes(minutes)
 
-    end = datetime.now(timezone.utc)
+    end = datetime.now(UTC)
     start = end - timedelta(minutes=minutes)
 
     monitors = list(db.scalars(select(Monitor).order_by(Monitor.id)).all())
@@ -50,20 +48,30 @@ def overview(minutes: int = 60, db: Session = Depends(get_db)):
     result = []
     for m in monitors:
         # counts in window
-        total = db.scalar(
-            select(func.count()).select_from(CheckRun).where(
-                CheckRun.monitor_id == m.id,
-                CheckRun.started_at >= start,
+        total = (
+            db.scalar(
+                select(func.count())
+                .select_from(CheckRun)
+                .where(
+                    CheckRun.monitor_id == m.id,
+                    CheckRun.started_at >= start,
+                )
             )
-        ) or 0
+            or 0
+        )
 
-        success_count = db.scalar(
-            select(func.count()).select_from(CheckRun).where(
-                CheckRun.monitor_id == m.id,
-                CheckRun.started_at >= start,
-                CheckRun.success.is_(True),
+        success_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(CheckRun)
+                .where(
+                    CheckRun.monitor_id == m.id,
+                    CheckRun.started_at >= start,
+                    CheckRun.success.is_(True),
+                )
             )
-        ) or 0
+            or 0
+        )
 
         uptime_pct = (success_count / total * 100.0) if total else None
 
@@ -84,7 +92,10 @@ def overview(minutes: int = 60, db: Session = Depends(get_db)):
 
         # last run
         last_run = db.scalars(
-            select(CheckRun).where(CheckRun.monitor_id == m.id).order_by(CheckRun.started_at.desc(), CheckRun.id.desc()).limit(1)
+            select(CheckRun)
+            .where(CheckRun.monitor_id == m.id)
+            .order_by(CheckRun.started_at.desc(), CheckRun.id.desc())
+            .limit(1)
         ).first()
 
         last_run_payload = last_run

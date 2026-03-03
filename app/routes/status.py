@@ -1,13 +1,13 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from deps import get_db
 from fastapi import APIRouter, Depends
+from models import Incident
+from schemas import StatusOut
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from deps import get_db
-from models import Incident
 from routes.overview import overview  # reuse existing logic
-from schemas import StatusOut
 
 router = APIRouter(prefix="/api", tags=["status"])
 
@@ -57,7 +57,7 @@ def status(minutes: int = 60, db: Session = Depends(get_db)):
         overall = "up"
 
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "overall": overall,
         "window": ov["window"],
         "monitors": ov["monitors"],

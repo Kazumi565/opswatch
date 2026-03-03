@@ -1,14 +1,15 @@
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from sqlalchemy import select
 
 from worker.db import SessionLocal
-from worker.models import Monitor, CheckRun, MonitorType
+from worker.models import CheckRun, Monitor, MonitorType
+
 
 def run_check(monitor_id: int) -> None:
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     t0 = time.perf_counter()
 
     status_code = None
@@ -33,12 +34,14 @@ def run_check(monitor_id: int) -> None:
 
         dur_ms = int((time.perf_counter() - t0) * 1000)
 
-        db.add(CheckRun(
-            monitor_id=m.id,
-            started_at=started,
-            duration_ms=dur_ms,
-            success=success,
-            status_code=status_code,
-            error=error,
-        ))
+        db.add(
+            CheckRun(
+                monitor_id=m.id,
+                started_at=started,
+                duration_ms=dur_ms,
+                success=success,
+                status_code=status_code,
+                error=error,
+            )
+        )
         db.commit()
