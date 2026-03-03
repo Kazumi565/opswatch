@@ -26,10 +26,10 @@ jobs:
           enable-cache: "true"
 
       - name: Ruff lint
-        run: uvx ruff check .
+        run: uvx ruff check --config ruff.toml .
 
       - name: Ruff format (check)
-        run: uvx ruff format --check .
+        run: uvx ruff format --config ruff.toml --check .
 
       - name: Pytest (minimal)
         run: uvx pytest -q
