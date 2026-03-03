@@ -1,0 +1,12 @@
+fastapi==0.115.*
+uvicorn[standard]==0.30.*
+sqlalchemy==2.0.*
+alembic==1.13.*
+psycopg[binary]==3.2.*
+pydantic==2.*
+pydantic-settings==2.*
+python-jose[cryptography]==3.*
+passlib[bcrypt]==1.7.*
+prometheus-client==0.20.*
+redis==5.*
+rq==1.*
