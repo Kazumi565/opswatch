@@ -1,15 +1,14 @@
-
-import time
 import socket
-from datetime import datetime, timezone
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
+from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy import select
-
 from opswatch_worker.db import SessionLocal
-from opswatch_worker.models import Monitor, CheckRun, MonitorType
 from opswatch_worker.incidents import evaluate_incident
+from opswatch_worker.models import CheckRun, Monitor, MonitorType
+from sqlalchemy import select
 
 SYSTEM_CA_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
 MAX_BODY_BYTES = 16384
@@ -52,7 +51,6 @@ def _check_http(url: str, timeout_seconds: int, keyword: str | None):
         follow_redirects=True,
         verify=SYSTEM_CA_BUNDLE,
     ) as client:
-
         if not keyword:
             r = client.get(url)
             ok = 200 <= r.status_code < 400
@@ -103,8 +101,8 @@ def _check_dns(hostname: str, timeout_seconds: int):
         fut = ex.submit(_resolve)
         try:
             res = fut.result(timeout=timeout_seconds)
-        except FuturesTimeoutError:
-            raise TimeoutError(f"dns resolve timeout after {timeout_seconds}s")
+        except FuturesTimeoutError as err:
+            raise TimeoutError(f"dns resolve timeout after {timeout_seconds}s") from err
 
     if not res:
         raise RuntimeError("dns resolved empty result")
@@ -113,7 +111,7 @@ def _check_dns(hostname: str, timeout_seconds: int):
 
 
 def run_check(monitor_id: int) -> None:
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     t0 = time.perf_counter()
 
     with SessionLocal() as db:
@@ -133,17 +131,11 @@ def run_check(monitor_id: int) -> None:
             attempts += 1
             try:
                 if m.type == MonitorType.http:
-                    success, status_code, error = _check_http(
-                        m.target, m.timeout_seconds, keyword
-                    )
+                    success, status_code, error = _check_http(m.target, m.timeout_seconds, keyword)
                 elif m.type == MonitorType.tcp:
-                    success, status_code, error = _check_tcp(
-                        m.target, m.timeout_seconds
-                    )
+                    success, status_code, error = _check_tcp(m.target, m.timeout_seconds)
                 elif m.type == MonitorType.dns:
-                    success, status_code, error = _check_dns(
-                        m.target, m.timeout_seconds
-                    )
+                    success, status_code, error = _check_dns(m.target, m.timeout_seconds)
                 else:
                     error = f"check type not implemented: {m.type}"
                     success = False
@@ -155,7 +147,7 @@ def run_check(monitor_id: int) -> None:
                 break
 
             if i < retries:
-                time.sleep(min(1.0, 0.2 * (2 ** i)))
+                time.sleep(min(1.0, 0.2 * (2**i)))
 
         dur_ms = int((time.perf_counter() - t0) * 1000)
 

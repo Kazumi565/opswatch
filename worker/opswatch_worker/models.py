@@ -1,16 +1,19 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text, Boolean
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
 
 class Base(DeclarativeBase):
     pass
 
-class MonitorType(str, enum.Enum):
+
+class MonitorType(enum.StrEnum):
     http = "http"
     tcp = "tcp"
     dns = "dns"
+
 
 class Monitor(Base):
     __tablename__ = "monitors"
@@ -26,13 +29,18 @@ class Monitor(Base):
     http_keyword: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+
 
 class CheckRun(Base):
     __tablename__ = "check_runs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     monitor_id: Mapped[int] = mapped_column(ForeignKey("monitors.id"), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     success: Mapped[bool] = mapped_column(Boolean, nullable=False)

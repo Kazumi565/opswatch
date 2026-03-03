@@ -1,9 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import (
-    DateTime, Enum, ForeignKey, Integer, String, Text, Boolean
-)
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -11,7 +9,7 @@ class Base(DeclarativeBase):
     pass
 
 
-class MonitorType(str, enum.Enum):
+class MonitorType(enum.StrEnum):
     http = "http"
     tcp = "tcp"
     dns = "dns"
@@ -33,7 +31,9 @@ class Monitor(Base):
     http_keyword: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
 
     check_runs: Mapped[list["CheckRun"]] = relationship(back_populates="monitor")
 
@@ -44,7 +44,9 @@ class CheckRun(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     monitor_id: Mapped[int] = mapped_column(ForeignKey("monitors.id"), nullable=False)
 
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
@@ -68,6 +70,7 @@ class Incident(Base):
     failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+
 class MaintenanceWindow(Base):
     __tablename__ = "maintenance_windows"
 
@@ -78,4 +81,6 @@ class MaintenanceWindow(Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
