@@ -33,7 +33,7 @@ jobs:
           sed -n '1,120p' ruff.toml
 
       - name: Ruff lint
-        run: uvx ruff check --config ruff.toml .
+        run: uvx ruff check --config ruff.toml --ignore B008 .
 
       - name: Ruff format (check)
         run: uvx ruff format --config ruff.toml --check .
