@@ -25,6 +25,13 @@ jobs:
         with:
           enable-cache: "true"
 
+      - name: Debug ruff config presence
+        run: |
+          pwd
+          ls -la
+          echo "---- ruff.toml ----"
+          sed -n '1,120p' ruff.toml
+
       - name: Ruff lint
         run: uvx ruff check --config ruff.toml .
 
