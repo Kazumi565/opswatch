@@ -6,12 +6,35 @@ services:
   prometheus:
     image: prom/prometheus:latest
     profiles: ["observability"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-lifecycle"
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
     ports:
       - "9090:9090"
     depends_on:
       - api
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+    profiles: ["observability"]
+
+  alert-receiver:
+    image: ealen/echo-server:0.9.2
+    ports:
+      - "8088:80"
+    restart: unless-stopped
+    profiles: ["observability"]
 
   grafana:
     image: grafana/grafana-oss:latest

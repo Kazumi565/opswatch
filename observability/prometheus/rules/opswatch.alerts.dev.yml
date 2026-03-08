@@ -1,0 +1,36 @@
+groups:
+  - name: opswatch-scrape
+    rules:
+      - alert: OpsWatchAPIScrapeDown
+        expr: up{job=~"opswatch-api|api"} == 0
+        for: 10s
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "OpsWatch API scrape is down"
+          description: "Prometheus cannot scrape the OpsWatch API /metrics endpoint for >10s (dev timing)."
+
+      - alert: OpsWatchWorkerScrapeDown
+        expr: up{job=~"opswatch-worker|worker"} == 0
+        for: 10s
+        labels:
+          severity: critical
+          component: worker
+        annotations:
+          summary: "OpsWatch worker scrape is down"
+          description: "Prometheus cannot scrape the OpsWatch worker /metrics endpoint for >10s (dev timing)."
+
+  - name: opswatch-behavior
+    rules:
+      # This one depends on you having *some* counter that increments per check run.
+      # If your metric name differs, swap it (see note below).
+      - alert: OpsWatchNoChecksExecuting
+        expr: sum(increase(opswatch_checks_total[5m])) == 0
+        for: 30s
+        labels:
+          severity: warning
+          component: pipeline
+        annotations:
+          summary: "No checks executed recently"
+          description: "No check executions recorded for 30s (dev timing). Scheduler/worker/queue may be stalled."

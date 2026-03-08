@@ -7,6 +7,12 @@ from datetime import UTC, datetime
 import httpx
 from opswatch_worker.db import SessionLocal
 from opswatch_worker.incidents import evaluate_incident
+from opswatch_worker.metrics import (
+    CHECK_ATTEMPTS,
+    CHECK_DURATION_SECONDS,
+    CHECK_EXCEPTIONS_TOTAL,
+    CHECK_RUNS_TOTAL,
+)
 from opswatch_worker.models import CheckRun, Monitor, MonitorType
 from sqlalchemy import select
 
@@ -140,6 +146,7 @@ def run_check(monitor_id: int) -> None:
                     error = f"check type not implemented: {m.type}"
                     success = False
             except Exception as e:
+                CHECK_EXCEPTIONS_TOTAL.labels(type=str(m.type), exception=type(e).__name__).inc()
                 error = f"{type(e).__name__}: {e}"
                 success = False
 
@@ -150,6 +157,10 @@ def run_check(monitor_id: int) -> None:
                 time.sleep(min(1.0, 0.2 * (2**i)))
 
         dur_ms = int((time.perf_counter() - t0) * 1000)
+        check_type = str(m.type)  # "http" / "tcp" / "dns"
+        CHECK_DURATION_SECONDS.labels(type=check_type).observe(dur_ms / 1000.0)
+        CHECK_ATTEMPTS.labels(type=check_type).observe(attempts)
+        CHECK_RUNS_TOTAL.labels(type=check_type, success=str(success).lower()).inc()
 
         db.add(
             CheckRun(

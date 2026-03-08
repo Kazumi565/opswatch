@@ -1,0 +1,54 @@
+{
+  "uid": "opswatch-checks",
+  "title": "OpsWatch Checks",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Checks per second (by type + success)",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 9 },
+      "targets": [
+        {
+          "expr": "sum(rate(opswatch_checks_total[1m])) by (type, success)",
+          "legendFormat": "{{type}} success={{success}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Success rate (by type)",
+      "gridPos": { "x": 0, "y": 9, "w": 24, "h": 9 },
+      "targets": [
+        {
+          "expr": "sum(rate(opswatch_checks_total{success=\"true\"}[5m])) by (type) / sum(rate(opswatch_checks_total[5m])) by (type)",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Check duration p95 (seconds, by type)",
+      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 9 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(opswatch_check_duration_seconds_bucket[5m])) by (le, type))",
+          "legendFormat": "{{type}} p95"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Exceptions (by type + class)",
+      "gridPos": { "x": 0, "y": 27, "w": 24, "h": 9 },
+      "targets": [
+        {
+          "expr": "sum(rate(opswatch_check_exceptions_total[5m])) by (type, exception)",
+          "legendFormat": "{{type}} {{exception}}"
+        }
+      ]
+    }
+  ]
+}
