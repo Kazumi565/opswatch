@@ -38,8 +38,14 @@ jobs:
       - name: Ruff format (check)
         run: uvx ruff format --config ruff.toml --check .
 
+      - name: Install backend test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r app/requirements.txt
+          python -m pip install pytest
+
       - name: Pytest
-        run: uvx pytest -q
+        run: python -m pytest -q
 
   frontend-quality:
     runs-on: ubuntu-latest
