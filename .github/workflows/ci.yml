@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -38,8 +38,34 @@ jobs:
       - name: Ruff format (check)
         run: uvx ruff format --config ruff.toml --check .
 
-      - name: Pytest (minimal)
+      - name: Pytest
         run: uvx pytest -q
+
+  frontend-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend install
+
+      - name: Frontend lint
+        run: npm --prefix frontend run lint
+
+      - name: Frontend typecheck
+        run: npm --prefix frontend run typecheck
+
+      - name: Frontend tests
+        run: npm --prefix frontend run test
+
+      - name: Frontend build
+        run: npm --prefix frontend run build
 
   docker-build:
     runs-on: ubuntu-latest

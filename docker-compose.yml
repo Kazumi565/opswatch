@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16
     environment:
@@ -39,6 +39,25 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+
+  frontend:
+    image: node:22-alpine
+    profiles: ["frontend"]
+    working_dir: /frontend
+    command: ["sh", "-c", "npm install && npm run dev -- --hostname 0.0.0.0 --port 3000"]
+    environment:
+      OPSWATCH_API_ORIGIN: http://api:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+      CHOKIDAR_USEPOLLING: "1"
+    volumes:
+      - ./frontend:/frontend
+      - frontend_node_modules:/frontend/node_modules
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "3001:3000"
+
   worker:
     build:
       context: ./worker
@@ -71,6 +90,7 @@ services:
     command: ["python", "-m", "opswatch_worker.scheduler"]
 
     restart: unless-stopped
+
   prober:
     build:
       context: ./prober
@@ -83,3 +103,4 @@ services:
 
 volumes:
   pgdata:
+  frontend_node_modules:

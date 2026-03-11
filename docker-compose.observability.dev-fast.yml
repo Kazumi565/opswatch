@@ -1,0 +1,5 @@
+﻿services:
+  prometheus:
+    command:
+      - "--config.file=/etc/prometheus/prometheus.dev-fast.yml"
+      - "--web.enable-lifecycle"

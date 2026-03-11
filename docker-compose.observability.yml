@@ -1,4 +1,4 @@
-services:
+﻿services:
   worker:
     ports:
       - "9101:9101"
@@ -11,8 +11,9 @@ services:
       - "--web.enable-lifecycle"
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
+      - ./observability/prometheus.dev-fast.yml:/etc/prometheus/prometheus.dev-fast.yml:ro
+      - ./observability/prometheus/rules/opswatch.alerts.yml:/etc/prometheus/rules/opswatch.alerts.yml:ro
+      - ./observability/prometheus/rules/opswatch.alerts.dev-fast.yml:/etc/prometheus/rules/opswatch.alerts.dev-fast.yml:ro
     ports:
       - "9090:9090"
     depends_on:
