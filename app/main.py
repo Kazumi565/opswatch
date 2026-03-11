@@ -1,4 +1,4 @@
-﻿import time
+import time
 
 from config import settings
 from deps import get_db

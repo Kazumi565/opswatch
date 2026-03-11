@@ -1,4 +1,4 @@
-﻿# tests/test_ci_sanity.py
+# tests/test_ci_sanity.py
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -6,10 +6,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_repo_has_expected_top_level_files():
     assert (ROOT / "docker-compose.yml").exists(), "docker-compose.yml missing"
-    assert (ROOT / "docker-compose.observability.yml").exists(), "docker-compose.observability.yml missing"
-    assert (
-        ROOT / "docker-compose.observability.dev-fast.yml"
-    ).exists(), "docker-compose.observability.dev-fast.yml missing"
+    assert (ROOT / "docker-compose.observability.yml").exists(), (
+        "docker-compose.observability.yml missing"
+    )
+    assert (ROOT / "docker-compose.observability.dev-fast.yml").exists(), (
+        "docker-compose.observability.dev-fast.yml missing"
+    )
     assert (ROOT / "README.md").exists(), "README.md missing"
     assert (ROOT / ".env.example").exists(), ".env.example missing"
 

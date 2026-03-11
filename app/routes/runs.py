@@ -35,7 +35,9 @@ def list_runs(
 ):
     limit = clamp_limit(limit)
 
-    stmt = select(CheckRun, Monitor.name.label("monitor_name")).join(Monitor, Monitor.id == CheckRun.monitor_id)
+    stmt = select(CheckRun, Monitor.name.label("monitor_name")).join(
+        Monitor, Monitor.id == CheckRun.monitor_id
+    )
 
     if success is not None:
         stmt = stmt.where(CheckRun.success.is_(success))
@@ -46,7 +48,9 @@ def list_runs(
             raise HTTPException(status_code=404, detail="Monitor not found")
         stmt = stmt.where(CheckRun.monitor_id == monitor_id)
 
-    rows = db.execute(stmt.order_by(CheckRun.started_at.desc(), CheckRun.id.desc()).limit(limit)).all()
+    rows = db.execute(
+        stmt.order_by(CheckRun.started_at.desc(), CheckRun.id.desc()).limit(limit)
+    ).all()
     return [serialize_run(run, monitor_name) for run, monitor_name in rows]
 
 
