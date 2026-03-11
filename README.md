@@ -16,6 +16,7 @@ It runs as a multi-service Docker Compose stack and demonstrates the full operat
 - Repository-provisioned Grafana dashboards
 - Prometheus + Alertmanager + local webhook alert delivery
 - Read-only Next.js dashboard (`Overview`, `Monitors`, `Incidents`, `Checks`)
+- Single-VM deployment assets (Caddy TLS ingress, pinned GHCR images, runbook, backup/restore)
 
 ## Services
 
@@ -35,6 +36,14 @@ Observability overlay (`docker-compose.observability.yml`):
 - `alertmanager`
 - `alert-receiver`
 - `grafana`
+
+Deployment stack (`docker-compose.deploy.yml` + `docker-compose.deploy.observability.yml`):
+
+- Caddy as public ingress (`80/443`)
+- API + frontend exposed through Caddy
+- Postgres/Redis/Prometheus/Alertmanager/Grafana not publicly published by default
+- Pinned GHCR app images by release tag (`OPSWATCH_IMAGE_TAG`)
+- Explicit one-off migration service (`migrate`)
 
 ## Quickstart
 
@@ -67,7 +76,7 @@ OPSWATCH_API_ORIGIN=http://localhost:8000 npm run dev -- --port 3001
 
 Dashboard URL: `http://localhost:3001`
 
-The frontend proxies backend traffic via `/opswatch-api/*`, so no CORS changes are required.
+The frontend proxies backend traffic via `/api/*`, so no CORS changes are required.
 
 ### Optional frontend via Docker Compose profile
 
@@ -107,6 +116,21 @@ docker compose \
 - Grafana: `http://localhost:3000` (`admin/admin`)
 - Alert webhook receiver: `http://localhost:8088`
 
+## Single-VM Deployment
+
+Use the deployment guide for production-like VM setup:
+
+- [deploy/README.md](deploy/README.md)
+- [docs/runbook.md](docs/runbook.md)
+
+Key points:
+
+- explicit `deploy-migrate` before `deploy-up`
+- Caddy TLS ingress with public domain
+- image pinning via `OPSWATCH_IMAGE_TAG`
+- daily Postgres custom-format backups (`pg_dump -Fc`) and restore workflow
+- rollback by pinning prior release tag and re-validating
+
 ## Alert Firing Quick Test
 
 Use dev-fast rules for quicker validation:
@@ -138,6 +162,8 @@ docker compose start api
 ### Health
 
 - `GET /health`
+- `GET /health/live`
+- `GET /health/ready`
 
 ### Version
 
@@ -192,6 +218,10 @@ make frontend-lint
 make frontend-typecheck
 make frontend-test
 make frontend-build
+make deploy-migrate DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
+make deploy-up DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
+make deploy-up-obs DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
+make deploy-validate DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
 make ci
 ```
 

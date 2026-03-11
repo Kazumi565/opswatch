@@ -38,10 +38,10 @@ function MonitorYAxisTick({ x = 0, y = 0, payload }: MonitorYAxisTickProps) {
 }
 
 export function OverviewView({ minutes }: OverviewViewProps) {
-  const statusQuery = useApiQuery(`/opswatch-api/api/status?minutes=${minutes}`, statusSchema);
-  const summaryQuery = useApiQuery("/opswatch-api/api/summary", summarySchema);
-  const overviewQuery = useApiQuery(`/opswatch-api/api/stats/overview?minutes=${minutes}`, overviewSchema);
-  const versionQuery = useApiQuery("/opswatch-api/api/version", versionSchema);
+  const statusQuery = useApiQuery(`/api/status?minutes=${minutes}`, statusSchema);
+  const summaryQuery = useApiQuery("/api/summary", summarySchema);
+  const overviewQuery = useApiQuery(`/api/stats/overview?minutes=${minutes}`, overviewSchema);
+  const versionQuery = useApiQuery("/api/version", versionSchema);
 
   const loading =
     statusQuery.isLoading || summaryQuery.isLoading || overviewQuery.isLoading || versionQuery.isLoading;

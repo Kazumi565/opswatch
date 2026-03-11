@@ -25,11 +25,11 @@ function buildRunsPath(success: "all" | "true" | "false", monitorId: number | nu
     params.set("monitor_id", String(monitorId));
   }
 
-  return `/opswatch-api/api/runs?${params.toString()}`;
+  return `/api/runs?${params.toString()}`;
 }
 
 export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
-  const monitorsQuery = useApiQuery("/opswatch-api/api/monitors", monitorSchema.array());
+  const monitorsQuery = useApiQuery("/api/monitors", monitorSchema.array());
 
   const runsPath = buildRunsPath(success, monitorId, limit);
   const runsQuery = useApiQuery(runsPath, checkRunSchema.array());

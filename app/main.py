@@ -1,8 +1,10 @@
 ﻿import time
 
 from config import settings
+from db import SessionLocal
 from deps import get_db
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from models import Monitor
 from prometheus_client import Counter, Histogram
 from redis import Redis
@@ -16,7 +18,7 @@ from routes.status import router as status_router
 from routes.summary import router as summary_router
 from rq import Queue
 from schemas import MonitorCreate, MonitorOut, MonitorUpdate
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 HTTP_REQUESTS = Counter(
@@ -62,6 +64,66 @@ async def prometheus_middleware(request, call_next):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/health/live")
+def health_live():
+    return {"status": "ok"}
+
+
+def _check_database() -> tuple[bool, str]:
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+        return True, "ok"
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+def _check_redis() -> tuple[bool, str]:
+    redis_conn = None
+    try:
+        redis_conn = Redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+        redis_conn.ping()
+        return True, "ok"
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+    finally:
+        if redis_conn is not None:
+            redis_conn.close()
+
+
+@app.get("/health/ready")
+def health_ready():
+    db_ok, db_detail = _check_database()
+    redis_ok, redis_detail = _check_redis()
+
+    dependencies = {
+        "database": {
+            "required": True,
+            "ok": db_ok,
+            "detail": db_detail,
+        },
+        "redis": {
+            "required": False,
+            "ok": redis_ok,
+            "detail": redis_detail,
+            "note": "Redis powers enqueue endpoints and worker/scheduler flow; core API reads are DB-backed.",
+        },
+    }
+
+    ready = db_ok
+    status = "ready" if ready and redis_ok else "degraded" if ready else "not_ready"
+    payload = {"status": status, "ready": ready, "dependencies": dependencies}
+
+    if ready:
+        return payload
+
+    return JSONResponse(status_code=503, content=payload)
 
 
 @app.get("/api/version")

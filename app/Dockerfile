@@ -1,8 +1,15 @@
 FROM python:3.12-slim
 
+ARG APP_VERSION=0.1.0
+ARG APP_COMMIT=unknown
+ARG APP_BUILT_AT=unknown
+
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    APP_VERSION=${APP_VERSION} \
+    APP_COMMIT=${APP_COMMIT} \
+    APP_BUILT_AT=${APP_BUILT_AT}
 
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt

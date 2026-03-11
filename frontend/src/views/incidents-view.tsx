@@ -24,7 +24,7 @@ function incidentStatusClass(status: string): string {
 }
 
 export function IncidentsView({ scope }: IncidentsViewProps) {
-  const endpoint = scope == "open" ? "/opswatch-api/api/incidents/open?limit=200" : "/opswatch-api/api/incidents?limit=200";
+  const endpoint = scope == "open" ? "/api/incidents/open?limit=200" : "/api/incidents?limit=200";
 
   const incidentsQuery = useApiQuery(endpoint, incidentSchema.array());
 

@@ -17,18 +17,18 @@ type MonitorsViewProps = {
 };
 
 export function MonitorsView({ minutes, selectedMonitorId }: MonitorsViewProps) {
-  const overviewQuery = useApiQuery(`/opswatch-api/api/stats/overview?minutes=${minutes}`, overviewSchema);
+  const overviewQuery = useApiQuery(`/api/stats/overview?minutes=${minutes}`, overviewSchema);
 
   const monitors = overviewQuery.data?.monitors ?? [];
   const activeMonitor = monitors.find((item) => item.monitor.id == selectedMonitorId) ?? monitors[0] ?? null;
 
   const statsQuery = useApiQuery(
-    activeMonitor ? `/opswatch-api/api/monitors/${activeMonitor.monitor.id}/stats?minutes=${minutes}` : null,
+    activeMonitor ? `/api/monitors/${activeMonitor.monitor.id}/stats?minutes=${minutes}` : null,
     monitorStatsSchema,
   );
 
   const runsQuery = useApiQuery(
-    activeMonitor ? `/opswatch-api/api/monitors/${activeMonitor.monitor.id}/runs?limit=20` : null,
+    activeMonitor ? `/api/monitors/${activeMonitor.monitor.id}/runs?limit=20` : null,
     checkRunSchema.array(),
   );
 

@@ -222,3 +222,48 @@ def test_version_endpoint_reads_settings(monkeypatch: pytest.MonkeyPatch, client
         "commit": "abc123",
         "built_at": "2026-03-09T00:00:00Z",
     }
+
+
+def test_health_live_returns_ok(client: TestClient):
+    r = client.get("/health/live")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}
+
+
+def test_health_ready_returns_ready_when_db_ok_and_redis_ok(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+):
+    monkeypatch.setattr(main, "_check_database", lambda: (True, "ok"), raising=True)
+    monkeypatch.setattr(main, "_check_redis", lambda: (True, "ok"), raising=True)
+
+    r = client.get("/health/ready")
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["ready"] is True
+    assert payload["status"] == "ready"
+
+
+def test_health_ready_returns_degraded_when_db_ok_and_redis_down(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+):
+    monkeypatch.setattr(main, "_check_database", lambda: (True, "ok"), raising=True)
+    monkeypatch.setattr(main, "_check_redis", lambda: (False, "ConnectionError"), raising=True)
+
+    r = client.get("/health/ready")
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["ready"] is True
+    assert payload["status"] == "degraded"
+
+
+def test_health_ready_returns_503_when_db_down(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+):
+    monkeypatch.setattr(main, "_check_database", lambda: (False, "OperationalError"), raising=True)
+    monkeypatch.setattr(main, "_check_redis", lambda: (True, "ok"), raising=True)
+
+    r = client.get("/health/ready")
+    assert r.status_code == 503
+    payload = r.json()
+    assert payload["ready"] is False
+    assert payload["status"] == "not_ready"

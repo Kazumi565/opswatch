@@ -79,6 +79,23 @@ jobs:
       - name: Docker compose build
         run: docker compose build --pull
 
+      - name: Build production frontend image
+        run: docker build -f frontend/Dockerfile --build-arg OPSWATCH_API_ORIGIN=http://api:8000 frontend
+
+      - name: Validate deploy compose config
+        run: |
+          docker compose \
+            --env-file deploy/.env.vm.example \
+            -f docker-compose.deploy.yml \
+            -f docker-compose.deploy.observability.yml \
+            --profile observability config >/dev/null
+
+      - name: Validate deploy script syntax
+        run: |
+          bash -n deploy/scripts/backup_postgres.sh
+          bash -n deploy/scripts/restore_postgres.sh
+          bash -n deploy/scripts/validate_deploy.sh
+
   trivy-fs:
     runs-on: ubuntu-latest
     steps:
