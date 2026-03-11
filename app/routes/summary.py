@@ -23,10 +23,12 @@ def summary(db: Session = Depends(get_db)):
         select(
             Incident.id,
             Incident.monitor_id,
+            Monitor.name.label("monitor_name"),
             Incident.opened_at,
             Incident.failure_count,
             Incident.last_error,
         )
+        .join(Monitor, Monitor.id == Incident.monitor_id)
         .where(Incident.status == "open")
         .order_by(Incident.opened_at.desc(), Incident.id.desc())
         .limit(10)
@@ -43,6 +45,7 @@ def summary(db: Session = Depends(get_db)):
                 {
                     "id": row.id,
                     "monitor_id": row.monitor_id,
+                    "monitor_name": row.monitor_name,
                     "opened_at": row.opened_at,
                     "failure_count": row.failure_count,
                     "last_error": row.last_error,

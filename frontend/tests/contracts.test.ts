@@ -35,6 +35,7 @@ describe("API schemas", () => {
           last_run: {
             id: 1,
             monitor_id: 1,
+            monitor_name: "API",
             started_at: "2026-03-09T00:00:00Z",
             duration_ms: 120,
             attempts: 1,
@@ -56,8 +57,17 @@ describe("API schemas", () => {
       summarySchema.parse({
         monitors: { total: 1, enabled: 1 },
         incidents: {
-          open: 0,
-          latest_open: [],
+          open: 1,
+          latest_open: [
+            {
+              id: 3,
+              monitor_id: 1,
+              monitor_name: "API",
+              opened_at: "2026-03-09T00:00:00Z",
+              failure_count: 3,
+              last_error: "timeout",
+            },
+          ],
         },
       }),
     ).toBeTruthy();
@@ -73,6 +83,7 @@ describe("API schemas", () => {
       incidentSchema.parse({
         id: 1,
         monitor_id: 1,
+        monitor_name: "API",
         status: "open",
         opened_at: "2026-03-09T00:00:00Z",
         resolved_at: null,
@@ -85,6 +96,7 @@ describe("API schemas", () => {
       checkRunSchema.parse({
         id: 1,
         monitor_id: 1,
+        monitor_name: "API",
         started_at: "2026-03-09T00:00:00Z",
         duration_ms: 123,
         attempts: 1,

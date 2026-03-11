@@ -1,13 +1,11 @@
 "use client";
 
-import useSWR from "swr";
-
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { formatDate, formatDurationMs } from "@/lib/format";
-import { fetchAndParse } from "@/lib/http";
 import { checkRunSchema, monitorSchema } from "@/lib/schemas";
+import { firstError, useApiQuery } from "@/lib/use-api-query";
 
 type ChecksViewProps = {
   success: "all" | "true" | "false";
@@ -31,22 +29,18 @@ function buildRunsPath(success: "all" | "true" | "false", monitorId: number | nu
 }
 
 export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
-  const monitorsQuery = useSWR("/opswatch-api/api/monitors", (path: string) => fetchAndParse(path, monitorSchema.array()), {
-    refreshInterval: 30_000,
-  });
+  const monitorsQuery = useApiQuery("/opswatch-api/api/monitors", monitorSchema.array());
 
   const runsPath = buildRunsPath(success, monitorId, limit);
-
-  const runsQuery = useSWR(runsPath, (path: string) => fetchAndParse(path, checkRunSchema.array()), {
-    refreshInterval: 30_000,
-  });
+  const runsQuery = useApiQuery(runsPath, checkRunSchema.array());
 
   if ((monitorsQuery.isLoading && !monitorsQuery.data) || (runsQuery.isLoading && !runsQuery.data)) {
     return <LoadingState message="Loading checks feed..." />;
   }
 
-  if (monitorsQuery.error || runsQuery.error) {
-    return <ErrorState message={String(monitorsQuery.error ?? runsQuery.error)} />;
+  const queryError = firstError(monitorsQuery.error, runsQuery.error);
+  if (queryError) {
+    return <ErrorState message={String(queryError)} />;
   }
 
   const monitors = monitorsQuery.data ?? [];
@@ -118,8 +112,8 @@ export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
       {runs.length == 0 ? (
         <EmptyState message="No check runs for the selected filters." />
       ) : (
-        <section className="overflow-hidden rounded-xl border border-white/10">
-          <table className="w-full text-sm">
+        <section className="overflow-x-auto rounded-xl border border-white/10">
+          <table className="min-w-[920px] w-full text-sm">
             <thead className="bg-slate-900/70 text-left text-xs uppercase tracking-[0.14em] text-slate-400">
               <tr>
                 <th className="px-3 py-3">Run</th>
@@ -131,16 +125,22 @@ export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
               </tr>
             </thead>
             <tbody>
-              {runs.map((run) => (
-                <tr key={run.id} className="bg-slate-950/30">
-                  <td className="px-3 py-3 font-medium text-slate-200">#{run.id}</td>
-                  <td className="px-3 py-3 text-slate-300">{monitorNames.get(run.monitor_id) ?? `Monitor ${run.monitor_id}`}</td>
-                  <td className="px-3 py-3 text-slate-200">{run.success ? "success" : "failure"}</td>
-                  <td className="px-3 py-3 text-slate-300">{formatDate(run.started_at)}</td>
-                  <td className="px-3 py-3 text-slate-300">{formatDurationMs(run.duration_ms)}</td>
-                  <td className="px-3 py-3 text-rose-300">{run.error ?? "-"}</td>
-                </tr>
-              ))}
+              {runs.map((run) => {
+                const monitorLabel = run.monitor_name ?? monitorNames.get(run.monitor_id) ?? `Monitor ${run.monitor_id}`;
+                return (
+                  <tr key={run.id} className="bg-slate-950/30">
+                    <td className="px-3 py-3 font-medium text-slate-200">#{run.id}</td>
+                    <td className="px-3 py-3 text-slate-300">
+                      <p className="font-medium text-slate-200">{monitorLabel}</p>
+                      <p className="text-xs text-slate-400">ID {run.monitor_id}</p>
+                    </td>
+                    <td className="px-3 py-3 text-slate-200"><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${run.success ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-rose-500/40 bg-rose-500/15 text-rose-300"}`}>{run.success ? "success" : "failure"}</span></td>
+                    <td className="px-3 py-3 text-slate-300">{formatDate(run.started_at)}</td>
+                    <td className="px-3 py-3 text-slate-300">{formatDurationMs(run.duration_ms)}</td>
+                    <td className="max-w-72 px-3 py-3 text-rose-300"><span className="block truncate" title={run.error ?? ""}>{run.error ?? "-"}</span></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>
@@ -148,4 +148,3 @@ export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
     </div>
   );
 }
-

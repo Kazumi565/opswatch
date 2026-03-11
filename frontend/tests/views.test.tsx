@@ -84,6 +84,7 @@ const statusPayload = {
       last_run: {
         id: 1,
         monitor_id: 1,
+        monitor_name: "API",
         started_at: "2026-03-09T00:00:00Z",
         duration_ms: 100,
         attempts: 1,
@@ -118,12 +119,26 @@ const runsPayload = [
   {
     id: 20,
     monitor_id: 1,
+    monitor_name: "API",
     started_at: "2026-03-09T00:00:00Z",
     duration_ms: 123,
     attempts: 1,
     success: true,
     status_code: 200,
     error: null,
+  },
+];
+
+const incidentsPayload = [
+  {
+    id: 11,
+    monitor_id: 1,
+    monitor_name: "API",
+    status: "open",
+    opened_at: "2026-03-09T00:00:00Z",
+    resolved_at: null,
+    failure_count: 3,
+    last_error: "timeout",
   },
 ];
 
@@ -172,19 +187,20 @@ describe("dashboard views", () => {
     renderWithSWR(<MonitorsView minutes={60} selectedMonitorId={1} />);
 
     expect(await screen.findByTestId("monitors-view")).toBeInTheDocument();
-    expect(screen.getByText("Selected monitor details")).toBeInTheDocument();
+    expect(screen.getByText("Selected monitor")).toBeInTheDocument();
   });
 
-  it("renders incidents page", async () => {
-    mockFetch([{ match: "/api/incidents/open", body: [] }]);
+  it("renders incidents page using monitor names", async () => {
+    mockFetch([{ match: "/api/incidents/open", body: incidentsPayload }]);
 
     renderWithSWR(<IncidentsView scope="open" />);
 
     expect(await screen.findByTestId("incidents-view")).toBeInTheDocument();
-    expect(screen.getByText("No incidents found for the selected scope.")).toBeInTheDocument();
+    expect(screen.getAllByText("API").length).toBeGreaterThan(0);
+    expect(screen.getByText("ID 1")).toBeInTheDocument();
   });
 
-  it("renders checks page", async () => {
+  it("renders checks page with monitor names", async () => {
     mockFetch([
       { match: "/api/monitors", body: monitorPayload },
       { match: "/api/runs", body: runsPayload },
@@ -194,6 +210,7 @@ describe("dashboard views", () => {
 
     expect(await screen.findByTestId("checks-view")).toBeInTheDocument();
     expect(screen.getByText("#20")).toBeInTheDocument();
+    expect(screen.getAllByText("API").length).toBeGreaterThan(0);
   });
 
   it("shows loading state while waiting for overview data", () => {

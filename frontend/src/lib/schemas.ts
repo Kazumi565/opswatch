@@ -3,6 +3,7 @@ import { z } from "zod";
 export const checkRunSchema = z.object({
   id: z.number(),
   monitor_id: z.number(),
+  monitor_name: z.string().nullable().optional(),
   started_at: z.string(),
   duration_ms: z.number(),
   attempts: z.number(),
@@ -54,6 +55,7 @@ export const monitorStatusSchema = z.object({
 export const incidentSchema = z.object({
   id: z.number(),
   monitor_id: z.number(),
+  monitor_name: z.string().nullable().optional(),
   status: z.string(),
   opened_at: z.string(),
   resolved_at: z.string().nullable(),
@@ -86,6 +88,7 @@ export const summarySchema = z.object({
       z.object({
         id: z.number(),
         monitor_id: z.number(),
+        monitor_name: z.string().nullable().optional(),
         opened_at: z.string(),
         failure_count: z.number(),
         last_error: z.string().nullable(),

@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -53,7 +53,7 @@ jobs:
           node-version: "22"
 
       - name: Install frontend dependencies
-        run: npm --prefix frontend install
+        run: npm --prefix frontend ci
 
       - name: Frontend lint
         run: npm --prefix frontend run lint

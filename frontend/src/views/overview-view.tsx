@@ -1,6 +1,5 @@
 "use client";
 
-import useSWR from "swr";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { ErrorState } from "@/components/error-state";
@@ -8,49 +7,52 @@ import { LoadingState } from "@/components/loading-state";
 import { StatusPill } from "@/components/status-pill";
 import { WindowSelector } from "@/components/window-selector";
 import { formatDate } from "@/lib/format";
-import { fetchAndParse } from "@/lib/http";
 import { overviewSchema, statusSchema, summarySchema, versionSchema } from "@/lib/schemas";
+import { firstError, useApiQuery } from "@/lib/use-api-query";
 
 type OverviewViewProps = {
   minutes: number;
 };
 
-function isLoading(...flags: boolean[]) {
-  return flags.some(Boolean);
+type MonitorYAxisTickProps = {
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+};
+
+function trimLabel(label: string, limit = 18): string {
+  return label.length > limit ? `${label.slice(0, Math.max(0, limit - 3))}...` : label;
+}
+
+function MonitorYAxisTick({ x = 0, y = 0, payload }: MonitorYAxisTickProps) {
+  const fullLabel = payload?.value ?? "";
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={0} dy={4} textAnchor="end" fill="#90a3b8" fontSize={12}>
+        <title>{fullLabel}</title>
+        {trimLabel(fullLabel)}
+      </text>
+    </g>
+  );
 }
 
 export function OverviewView({ minutes }: OverviewViewProps) {
-  const statusQuery = useSWR(
-    `/opswatch-api/api/status?minutes=${minutes}`,
-    (path: string) => fetchAndParse(path, statusSchema),
-    { refreshInterval: 30_000 },
-  );
-  const summaryQuery = useSWR("/opswatch-api/api/summary", (path: string) => fetchAndParse(path, summarySchema), {
-    refreshInterval: 30_000,
-  });
-  const overviewQuery = useSWR(
-    `/opswatch-api/api/stats/overview?minutes=${minutes}`,
-    (path: string) => fetchAndParse(path, overviewSchema),
-    { refreshInterval: 30_000 },
-  );
-  const versionQuery = useSWR("/opswatch-api/api/version", (path: string) => fetchAndParse(path, versionSchema), {
-    refreshInterval: 30_000,
-  });
+  const statusQuery = useApiQuery(`/opswatch-api/api/status?minutes=${minutes}`, statusSchema);
+  const summaryQuery = useApiQuery("/opswatch-api/api/summary", summarySchema);
+  const overviewQuery = useApiQuery(`/opswatch-api/api/stats/overview?minutes=${minutes}`, overviewSchema);
+  const versionQuery = useApiQuery("/opswatch-api/api/version", versionSchema);
 
-  const loading = isLoading(
-    statusQuery.isLoading,
-    summaryQuery.isLoading,
-    overviewQuery.isLoading,
-    versionQuery.isLoading,
-  );
+  const loading =
+    statusQuery.isLoading || summaryQuery.isLoading || overviewQuery.isLoading || versionQuery.isLoading;
 
   if (loading && (!statusQuery.data || !summaryQuery.data || !overviewQuery.data || !versionQuery.data)) {
     return <LoadingState message="Loading overview telemetry..." />;
   }
 
-  const error = statusQuery.error ?? summaryQuery.error ?? overviewQuery.error ?? versionQuery.error;
-  if (error) {
-    return <ErrorState message={String(error)} />;
+  const queryError = firstError(statusQuery.error, summaryQuery.error, overviewQuery.error, versionQuery.error);
+  if (queryError) {
+    return <ErrorState message={String(queryError)} />;
   }
 
   const status = statusQuery.data;
@@ -78,10 +80,13 @@ export function OverviewView({ minutes }: OverviewViewProps) {
     count: value,
   }));
 
-  const latencyChartData = overview.monitors.map((item) => ({
-    monitor: item.monitor.name,
-    p95: item.latency_ms.p95 ?? 0,
-  }));
+  const latencyChartData = overview.monitors
+    .map((item) => ({
+      monitor: item.monitor.name,
+      p95: item.latency_ms.p95 ?? 0,
+    }))
+    .sort((a, b) => b.p95 - a.p95)
+    .slice(0, 10);
 
   const maintenanceCount = overview.monitors.filter((item) => item.maintenance.active).length;
 
@@ -146,7 +151,7 @@ export function OverviewView({ minutes }: OverviewViewProps) {
                 <CartesianGrid strokeDasharray="4 4" stroke="#243244" />
                 <XAxis dataKey="status" stroke="#90a3b8" />
                 <YAxis allowDecimals={false} stroke="#90a3b8" />
-                <Tooltip cursor={{ fill: "rgba(255,255,255,0.05)" }} />
+                <Tooltip cursor={{ fill: "rgba(255,255,255,0.05)" }} contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.35)", borderRadius: "0.5rem" }} labelStyle={{ color: "#e2e8f0", fontWeight: 600 }} itemStyle={{ color: "#e2e8f0" }} />
                 <Bar dataKey="count" fill="#2ad0a9" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -154,15 +159,22 @@ export function OverviewView({ minutes }: OverviewViewProps) {
         </section>
 
         <section className="rounded-xl border border-white/10 bg-slate-900/45 p-4">
-          <h3 className="text-sm font-semibold text-slate-200">p95 latency by monitor (ms)</h3>
+          <h3 className="text-sm font-semibold text-slate-200">Top monitor p95 latency (ms)</h3>
           <div className="mt-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={latencyChartData}>
+              <BarChart layout="vertical" data={latencyChartData} margin={{ left: 8, right: 18 }}>
                 <CartesianGrid strokeDasharray="4 4" stroke="#243244" />
-                <XAxis dataKey="monitor" stroke="#90a3b8" interval={0} angle={-20} textAnchor="end" height={80} />
-                <YAxis allowDecimals={false} stroke="#90a3b8" />
-                <Tooltip cursor={{ fill: "rgba(255,255,255,0.05)" }} />
-                <Bar dataKey="p95" fill="#f4c95d" radius={[6, 6, 0, 0]} />
+                <XAxis type="number" stroke="#90a3b8" />
+                <YAxis dataKey="monitor" type="category" width={120} stroke="#90a3b8" tick={<MonitorYAxisTick />} />
+                <Tooltip
+                  cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                  contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.35)", borderRadius: "0.5rem" }}
+                  labelStyle={{ color: "#e2e8f0", fontWeight: 600 }}
+                  itemStyle={{ color: "#e2e8f0" }}
+                  formatter={(value) => [`${value} ms`, "p95"]}
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.monitor ?? ""}
+                />
+                <Bar dataKey="p95" fill="#f4c95d" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -179,7 +191,7 @@ export function OverviewView({ minutes }: OverviewViewProps) {
             <li key={incident.id} className="rounded-lg border border-white/10 bg-slate-950/40 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium text-rose-300">Incident #{incident.id}</span>
-                <span className="text-xs text-slate-400">Monitor {incident.monitor_id}</span>
+                <span className="text-xs text-slate-400">{incident.monitor_name ?? `Monitor ${incident.monitor_id}`}</span>
               </div>
               <p className="mt-1 text-xs text-slate-400">Opened {formatDate(incident.opened_at)}</p>
               <p className="mt-1 text-xs text-slate-400">Last error: {incident.last_error ?? "-"}</p>
@@ -195,4 +207,3 @@ export function OverviewView({ minutes }: OverviewViewProps) {
     </div>
   );
 }
-
