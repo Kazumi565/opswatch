@@ -45,6 +45,10 @@ jobs:
           python -m pip install pytest httpx
 
       - name: Pytest
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/opswatch_ci
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci-test-secret
         run: python -m pytest -q
 
   frontend-quality:
