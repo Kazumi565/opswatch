@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from deps import get_db
 from fastapi import APIRouter, Depends
-from models import Incident
+from models import Incident, Monitor
 from schemas import StatusOut
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -33,16 +33,21 @@ def status(minutes: int = 60, db: Session = Depends(get_db)):
     )
 
     # Fetch open incidents, but ignore ones for monitors in maintenance
-    open_incidents_all = db.scalars(
-        select(Incident)
+    open_incidents_rows = db.execute(
+        select(Incident, Monitor.name.label("monitor_name"))
+        .join(Monitor, Monitor.id == Incident.monitor_id)
         .where(Incident.status == "open")
         .order_by(Incident.opened_at.desc(), Incident.id.desc())
         .limit(50)
     ).all()
 
-    open_incidents = [i for i in open_incidents_all if i.monitor_id not in maintenance_ids]
-    any_open_nonmaint = len(open_incidents) > 0
+    open_incidents_filtered = [
+        (incident, monitor_name)
+        for incident, monitor_name in open_incidents_rows
+        if incident.monitor_id not in maintenance_ids
+    ]
 
+    any_open_nonmaint = len(open_incidents_filtered) > 0
     any_maint = len(maintenance_ids) > 0
 
     # Overall policy:
@@ -63,14 +68,15 @@ def status(minutes: int = 60, db: Session = Depends(get_db)):
         "monitors": ov["monitors"],
         "open_incidents": [
             {
-                "id": i.id,
-                "monitor_id": i.monitor_id,
-                "status": i.status,
-                "opened_at": i.opened_at.isoformat(),
-                "resolved_at": i.resolved_at.isoformat() if i.resolved_at else None,
-                "failure_count": i.failure_count,
-                "last_error": i.last_error,
+                "id": incident.id,
+                "monitor_id": incident.monitor_id,
+                "monitor_name": monitor_name,
+                "status": incident.status,
+                "opened_at": incident.opened_at.isoformat(),
+                "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
+                "failure_count": incident.failure_count,
+                "last_error": incident.last_error,
             }
-            for i in open_incidents
+            for incident, monitor_name in open_incidents_filtered
         ],
     }

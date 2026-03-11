@@ -1,225 +1,215 @@
-# OpsWatch
+﻿# OpsWatch
 
-OpsWatch is a self-hosted uptime monitoring and incident tracking platform designed to run on a single machine using Docker Compose. It supports HTTP, TCP, and DNS checks, retry logic, automatic incident handling, and maintenance window enforcement.
+OpsWatch is a local-first monitoring and incident platform for portfolio-grade DevOps workflows.
 
-The system is intentionally simple: no Kubernetes, no external dependencies beyond Postgres and Redis, and everything runs locally in containers.
+It runs as a multi-service Docker Compose stack and demonstrates the full operational loop:
 
----
+`define monitor -> schedule checks -> execute checks -> store runs -> evaluate incidents -> suppress in maintenance -> expose metrics -> visualize -> alert`
 
 ## Features
 
-* HTTP, TCP, and DNS monitoring
-* Configurable retries per monitor
-* Optional HTTP keyword validation
-* Check run history with duration, attempts, status code, and error details
-* Automatic incident open/resolve logic
-* Per-monitor failure thresholds
-* Maintenance windows with enforcement rules
-* Status and overview aggregation endpoints
-
----
-
-## Architecture
-
-Single-node deployment using Docker Compose.
-
-```
-                +-------------------+
-                |      FastAPI      |
-                |        API        |
-                +---------+---------+
-                          |
-                          | CRUD + read endpoints
-                          v
-+-------------------+  writes/reads  +-------------------+
-|      Worker       |<-------------->|     Postgres      |
-|    (RQ worker)    |                | monitors / runs   |
-+---------+---------+                +-------------------+
-          ^
-          | jobs (Redis queue: checks)
-          |
-+---------+---------+        enqueues due checks        +-------------------+
-|    Scheduler      |---------------------------------> |       Redis       |
-|   (polling loop)  |                                   |      queues       |
-+-------------------+                                   +-------------------+
-```
-
-### Execution Flow
-
-1. The scheduler polls Postgres for monitors that are due.
-2. Due checks are enqueued into Redis (queue: `checks`).
-3. The worker executes the check and writes a `check_runs` record.
-4. After each run, the incident engine evaluates whether to open or resolve an incident.
-
----
+- HTTP, TCP, DNS monitoring
+- Scheduler + Redis queue + worker execution model
+- Automatic incident open/resolve logic
+- Maintenance window suppression behavior
+- Prometheus metrics from API and worker
+- Repository-provisioned Grafana dashboards
+- Prometheus + Alertmanager + local webhook alert delivery
+- Read-only Next.js dashboard (`Overview`, `Monitors`, `Incidents`, `Checks`)
 
 ## Services
 
-Defined in `docker-compose.yml`:
+Core stack (`docker-compose.yml`):
 
-* **postgres** (Postgres 16)
-* **redis** (Redis 7)
-* **api** (FastAPI)
-* **worker** (RQ worker)
-* **scheduler** (database polling scheduler)
-* **prober** (placeholder service)
+- `postgres` (state store)
+- `redis` (queue backend)
+- `api` (FastAPI control plane)
+- `worker` (RQ worker)
+- `scheduler` (due-check enqueue loop)
+- `prober` (probe-related service scaffold)
+- `frontend` (optional profile, Next.js dashboard on `http://localhost:3001`)
 
----
+Observability overlay (`docker-compose.observability.yml`):
+
+- `prometheus`
+- `alertmanager`
+- `alert-receiver`
+- `grafana`
 
 ## Quickstart
 
 ### Requirements
 
-* Docker
-* Docker Compose
+- Docker + Docker Compose
+- Node.js 22+ (only for native frontend development)
 
-### Start the stack
+### 1) Start backend stack
 
 ```bash
 docker compose up -d --build
 ```
 
-### Verify
+### 2) Verify API
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-API documentation is available at:
+## Frontend Dashboard
 
-* [http://localhost:8000/docs](http://localhost:8000/docs)
+### Native local frontend dev (recommended)
 
----
+```bash
+cd frontend
+npm install
+OPSWATCH_API_ORIGIN=http://localhost:8000 npm run dev -- --port 3001
+```
 
-## Monitoring Model
+Dashboard URL: `http://localhost:3001`
 
-Each monitor includes:
+The frontend proxies backend traffic via `/opswatch-api/*`, so no CORS changes are required.
 
-* `type`: `http`, `tcp`, or `dns`
-* `target`: URL, `host:port`, or hostname
-* `interval_seconds`
-* `timeout_seconds`
-* `retries`
-* `incident_threshold`
-* `http_keyword` (optional)
-* `enabled`
+### Optional frontend via Docker Compose profile
 
-### HTTP Checks
+```bash
+docker compose --profile frontend up -d frontend
+```
 
-* Considered successful if `200 <= status < 400`
-* If `http_keyword` is defined, the response body must contain it
+Dashboard URL: `http://localhost:3001`
 
-### TCP Checks
+## Observability Stack
 
-* Attempts to open a socket connection to `host:port`
+### Start with standard alert timings
 
-### DNS Checks
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.observability.yml \
+  --profile observability up -d --build
+```
 
-* Resolves hostname using `socket.getaddrinfo`
-* Enforces a timeout to prevent blocking workers
+### Start with dev-fast alert timings
 
----
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.observability.yml \
+  -f docker-compose.observability.dev-fast.yml \
+  --profile observability up -d --build
+```
 
-## Incident Handling
+### URLs
 
-Incidents have a minimal lifecycle:
+- API docs: `http://localhost:8000/docs`
+- Frontend dashboard: `http://localhost:3001`
+- Prometheus: `http://localhost:9090`
+- Alertmanager: `http://localhost:9093`
+- Grafana: `http://localhost:3000` (`admin/admin`)
+- Alert webhook receiver: `http://localhost:8088`
 
-* `open`
-* `resolved`
+## Alert Firing Quick Test
 
-An incident opens when consecutive failures reach the configured threshold. It resolves automatically on the next successful run.
+Use dev-fast rules for quicker validation:
 
-### Maintenance Behavior
+1. Start observability with `docker-compose.observability.dev-fast.yml`.
+2. Stop API temporarily:
 
-While a maintenance window is active:
+```bash
+docker compose stop api
+```
 
-* Open incidents are automatically resolved
-* New incidents are not opened
+3. Wait for `OpsWatchAPIScrapeDown` to fire in Prometheus/Alertmanager.
+4. Check delivery at receiver logs:
 
-Status aggregation accounts for maintenance windows when calculating overall system state.
+```bash
+docker compose logs -f --tail=200 alert-receiver
+```
 
----
+5. Restore API:
+
+```bash
+docker compose start api
+```
+
+6. Confirm resolved notification delivery.
 
 ## API Overview
 
 ### Health
 
-* `GET /health`
+- `GET /health`
+
+### Version
+
+- `GET /api/version` -> `{version, commit, built_at}`
 
 ### Monitors
 
-* `POST /api/monitors`
-* `GET /api/monitors`
-* `GET /api/monitors/{id}`
-* `PATCH /api/monitors/{id}`
-* `DELETE /api/monitors/{id}`
-
-### Manual Check
-
-* `POST /api/monitors/{id}/run`
+- `POST /api/monitors`
+- `GET /api/monitors`
+- `GET /api/monitors/{id}`
+- `PATCH /api/monitors/{id}`
+- `DELETE /api/monitors/{id}`
+- `POST /api/monitors/{id}/run`
 
 ### Runs
 
-* `GET /api/monitors/{id}/runs`
-* `GET /api/runs/{run_id}`
+- `GET /api/runs?limit=&success=&monitor_id=`
+- `GET /api/monitors/{id}/runs`
+- `GET /api/runs/{run_id}`
 
 ### Incidents
 
-* `GET /api/incidents`
-* `GET /api/incidents/open`
-* `GET /api/incidents/{incident_id}`
+- `GET /api/incidents`
+- `GET /api/incidents/open`
+- `GET /api/incidents/{incident_id}`
 
 ### Status and Stats
 
-* `GET /api/status`
-* `GET /api/overview`
-* `GET /api/stats/overview`
-* `GET /api/monitors/{id}/stats`
+- `GET /api/status`
+- `GET /api/summary`
+- `GET /api/stats/overview`
+- `GET /api/monitors/{id}/stats`
 
 ### Maintenance
 
-* `POST /api/maintenance`
-* `GET /api/maintenance`
-* `DELETE /api/maintenance/{id}`
+- `POST /api/maintenance`
+- `GET /api/maintenance`
+- `DELETE /api/maintenance/{id}`
 
----
+## Helper Commands
 
-## Development
+A root `Makefile` proxies to `scripts/makefile`.
 
-Linting, formatting, and tests:
+Examples:
 
 ```bash
-uvx ruff check .
-uvx ruff format --check .
+make up
+make obs-up
+make obs-up-dev-fast
+make frontend-install
+make frontend-lint
+make frontend-typecheck
+make frontend-test
+make frontend-build
+make ci
+```
+
+## Testing and Quality
+
+Backend:
+
+```bash
+uvx ruff check --config ruff.toml --ignore B008 .
+uvx ruff format --config ruff.toml --check .
 uvx pytest -q
 ```
 
-CI runs on each push and pull request and includes:
+Frontend:
 
-* Lint and format checks
-* Tests
-* Docker build
-* Vulnerability scan (report-only)
-
----
-
-## Notes
-
-* Worker enqueue target must remain `opswatch_worker.jobs.run_check`
-* `.env` is not committed (see `.env.example`)
-* Containers may need to be recreated after structural changes
-
----
-
-## Roadmap
-
-* Improve test coverage (incident and maintenance logic)
-* Add metrics endpoint and Prometheus integration
-* Provide a minimal status page UI
-* Infrastructure as Code deployment example
-
----
-
-## License
-
-TBD
+```bash
+npm --prefix frontend run lint
+npm --prefix frontend run typecheck
+npm --prefix frontend run test
+npm --prefix frontend run build
+```

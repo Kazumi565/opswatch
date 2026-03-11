@@ -2,7 +2,7 @@
   scrape_interval: 15s
 
 rule_files:
-  - /etc/prometheus/rules/opswatch.alerts.yml
+  - /etc/prometheus/rules/opswatch.alerts.dev-fast.yml
 
 alerting:
   alertmanagers:

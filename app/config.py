@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+﻿from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -6,9 +6,15 @@ class Settings(BaseSettings):
     redis_url: str
     jwt_secret: str
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    app_version: str = "0.1.0"
+    app_commit: str = "unknown"
+    app_built_at: str = "unknown"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
 settings = Settings()

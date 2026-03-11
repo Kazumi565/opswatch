@@ -52,6 +52,7 @@ class MonitorOut(BaseModel):
 class IncidentOut(BaseModel):
     id: int
     monitor_id: int
+    monitor_name: str | None = None
     status: str
     opened_at: datetime
     resolved_at: datetime | None = None
@@ -64,6 +65,7 @@ class IncidentOut(BaseModel):
 class CheckRunOut(BaseModel):
     id: int
     monitor_id: int
+    monitor_name: str | None = None
     started_at: datetime
     duration_ms: int
     attempts: int

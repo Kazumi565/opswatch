@@ -1,4 +1,4 @@
-import time
+﻿import time
 
 from config import settings
 from deps import get_db
@@ -62,6 +62,15 @@ async def prometheus_middleware(request, call_next):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/version")
+def api_version():
+    return {
+        "version": settings.app_version,
+        "commit": settings.app_commit,
+        "built_at": settings.app_built_at,
+    }
 
 
 # ---- Monitors ----
