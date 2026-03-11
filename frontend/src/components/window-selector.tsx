@@ -27,11 +27,7 @@ export function WindowSelector({ basePath, minutes, params = {} }: WindowSelecto
           <Link
             key={value}
             href={`${basePath}?${query.toString()}`}
-            className={`rounded-md border px-2 py-1 transition ${
-              active
-                ? "border-accent/70 bg-accent/20 text-accent"
-                : "border-white/15 hover:border-white/40 hover:text-white"
-            }`}
+            className={`ow-btn-toggle ${active ? "ow-btn-toggle-active" : "ow-btn-toggle-inactive"}`}
           >
             {value >= 60 ? `${value / 60}h` : `${value}m`}
           </Link>

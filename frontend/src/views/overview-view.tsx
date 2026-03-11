@@ -4,6 +4,9 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
+import { PageHeader } from "@/components/page-header";
+import { Panel } from "@/components/panel";
+import { StateBadge } from "@/components/state-badge";
 import { StatusPill } from "@/components/status-pill";
 import { WindowSelector } from "@/components/window-selector";
 import { formatDate } from "@/lib/format";
@@ -36,6 +39,16 @@ function MonitorYAxisTick({ x = 0, y = 0, payload }: MonitorYAxisTickProps) {
     </g>
   );
 }
+
+const chartTooltipTheme = {
+  contentStyle: {
+    backgroundColor: "#0f172a",
+    border: "1px solid rgba(148,163,184,0.35)",
+    borderRadius: "0.5rem",
+  },
+  labelStyle: { color: "#e2e8f0", fontWeight: 600 },
+  itemStyle: { color: "#e2e8f0" },
+} as const;
 
 export function OverviewView({ minutes }: OverviewViewProps) {
   const statusQuery = useApiQuery(`/opswatch-api/api/status?minutes=${minutes}`, statusSchema);
@@ -75,9 +88,9 @@ export function OverviewView({ minutes }: OverviewViewProps) {
     statusBuckets[monitor.status] += 1;
   });
 
-  const statusChartData = Object.entries(statusBuckets).map(([name, value]) => ({
-    status: name,
-    count: value,
+  const statusChartData = ["up", "down", "maintenance", "unknown"].map((statusName) => ({
+    status: statusName,
+    count: statusBuckets[statusName as keyof typeof statusBuckets],
   }));
 
   const latencyChartData = overview.monitors
@@ -90,76 +103,107 @@ export function OverviewView({ minutes }: OverviewViewProps) {
 
   const maintenanceCount = overview.monitors.filter((item) => item.maintenance.active).length;
 
-  const alertSummary =
+  const riskState =
     status.open_incidents.length > 0
-      ? `${status.open_incidents.length} active incident(s) require attention`
+      ? {
+          label: "Active incidents",
+          tone: "error" as const,
+          message: `${status.open_incidents.length} active incident(s) require attention`,
+        }
       : status.overall === "degraded"
-        ? "No active incidents; system is degraded due to maintenance impact"
-        : "No active incident-derived alerts";
+        ? {
+            label: "Maintenance impact",
+            tone: "warning" as const,
+            message: "No active incidents; current degradation is maintenance-related",
+          }
+        : {
+            label: "Stable",
+            tone: "ok" as const,
+            message: "No active incident-derived risk signals",
+          };
 
   return (
-    <div className="space-y-5" data-testid="overview-view">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Overview</h2>
-        <div className="flex items-center gap-2">
-          <WindowSelector basePath="/overview" minutes={minutes} />
-          <button
-            type="button"
-            onClick={() => Promise.all([statusQuery.mutate(), summaryQuery.mutate(), overviewQuery.mutate(), versionQuery.mutate()])}
-            className="rounded-md border border-white/20 px-3 py-1.5 text-xs hover:border-white/50"
-          >
-            Refresh now
-          </button>
-        </div>
-      </div>
+    <div className="ow-page" data-testid="overview-view">
+      <PageHeader
+        title="Overview"
+        description="Primary operational snapshot with monitor health, risk signals, and latency trends."
+        actions={
+          <>
+            <WindowSelector basePath="/overview" minutes={minutes} />
+            <button
+              type="button"
+              onClick={() => Promise.all([statusQuery.mutate(), summaryQuery.mutate(), overviewQuery.mutate(), versionQuery.mutate()])}
+              className="ow-btn-secondary"
+            >
+              Refresh now
+            </button>
+          </>
+        }
+      />
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <article className="rounded-xl border border-white/10 bg-slate-900/45 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Overall status</p>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Panel className="p-4">
+          <p className="ow-kpi-label">Overall status</p>
           <div className="mt-2">
             <StatusPill status={status.overall} />
           </div>
-        </article>
-        <article className="rounded-xl border border-white/10 bg-slate-900/45 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Monitors enabled</p>
-          <p className="mt-2 text-2xl font-semibold">
+          <p className="mt-2 text-xs text-slate-400">Window: last {minutes} minute(s)</p>
+        </Panel>
+
+        <Panel className="p-4">
+          <p className="ow-kpi-label">Monitors enabled</p>
+          <p className="ow-kpi-value">
             {summary.monitors.enabled}
-            <span className="ml-2 text-sm font-normal text-slate-400">/ {summary.monitors.total}</span>
+            <span className="ow-kpi-meta">/ {summary.monitors.total}</span>
           </p>
-        </article>
-        <article className="rounded-xl border border-white/10 bg-slate-900/45 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Open incidents</p>
-          <p className="mt-2 text-2xl font-semibold text-rose-300">{summary.incidents.open}</p>
-        </article>
-        <article className="rounded-xl border border-white/10 bg-slate-900/45 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Maintained monitors</p>
-          <p className="mt-2 text-2xl font-semibold text-indigo-300">{maintenanceCount}</p>
-        </article>
+          <p className="mt-1 text-xs text-slate-400">Total configured service checks</p>
+        </Panel>
+
+        <Panel className={`p-4 ${summary.incidents.open > 0 ? "border-rose-500/30" : ""}`}>
+          <p className="ow-kpi-label">Open incidents</p>
+          <p className="ow-kpi-value text-rose-300">{summary.incidents.open}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {summary.incidents.open > 0 ? "Escalation signal is currently active" : "No unresolved incidents"}
+          </p>
+        </Panel>
+
+        <Panel className="p-4">
+          <p className="ow-kpi-label">Maintained monitors</p>
+          <p className="ow-kpi-value text-indigo-300">{maintenanceCount}</p>
+          <p className="mt-1 text-xs text-slate-400">Incident suppression currently active</p>
+        </Panel>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-slate-900/40 p-4">
-        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Alert signal (incident-derived)</p>
-        <p className="mt-2 text-sm text-slate-200">{alertSummary}</p>
-      </div>
+      <Panel className="p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="ow-kpi-label">Current risk signal</p>
+            <p className="mt-2 text-sm text-slate-200">{riskState.message}</p>
+          </div>
+          <StateBadge label={riskState.label} tone={riskState.tone} />
+        </div>
+      </Panel>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-white/10 bg-slate-900/45 p-4">
-          <h3 className="text-sm font-semibold text-slate-200">Monitor status distribution</h3>
+        <Panel className="p-4">
+          <h3 className="ow-section-title">Monitor status distribution</h3>
+          <p className="ow-section-subtitle">Health buckets in the selected window</p>
           <div className="mt-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={statusChartData}>
                 <CartesianGrid strokeDasharray="4 4" stroke="#243244" />
                 <XAxis dataKey="status" stroke="#90a3b8" />
                 <YAxis allowDecimals={false} stroke="#90a3b8" />
-                <Tooltip cursor={{ fill: "rgba(255,255,255,0.05)" }} contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.35)", borderRadius: "0.5rem" }} labelStyle={{ color: "#e2e8f0", fontWeight: 600 }} itemStyle={{ color: "#e2e8f0" }} />
+                <Tooltip cursor={{ fill: "rgba(255,255,255,0.05)" }} {...chartTooltipTheme} />
                 <Bar dataKey="count" fill="#2ad0a9" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </section>
+        </Panel>
 
-        <section className="rounded-xl border border-white/10 bg-slate-900/45 p-4">
-          <h3 className="text-sm font-semibold text-slate-200">Top monitor p95 latency (ms)</h3>
+        <Panel className="p-4">
+          <h3 className="ow-section-title">Top monitor p95 latency (ms)</h3>
+          <p className="ow-section-subtitle">Highest p95 monitors in the selected window</p>
           <div className="mt-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart layout="vertical" data={latencyChartData} margin={{ left: 8, right: 18 }}>
@@ -168,9 +212,7 @@ export function OverviewView({ minutes }: OverviewViewProps) {
                 <YAxis dataKey="monitor" type="category" width={120} stroke="#90a3b8" tick={<MonitorYAxisTick />} />
                 <Tooltip
                   cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                  contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.35)", borderRadius: "0.5rem" }}
-                  labelStyle={{ color: "#e2e8f0", fontWeight: 600 }}
-                  itemStyle={{ color: "#e2e8f0" }}
+                  {...chartTooltipTheme}
                   formatter={(value) => [`${value} ms`, "p95"]}
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.monitor ?? ""}
                 />
@@ -178,28 +220,31 @@ export function OverviewView({ minutes }: OverviewViewProps) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </section>
+        </Panel>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-slate-900/45 p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-200">Recent open incidents</h3>
+      <Panel className="p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="ow-section-title">Recent open incidents</h3>
           <p className="text-xs text-slate-400">Generated: {formatDate(status.generated_at)}</p>
         </div>
         <ul className="mt-3 space-y-2 text-sm text-slate-300">
           {status.open_incidents.slice(0, 5).map((incident) => (
             <li key={incident.id} className="rounded-lg border border-white/10 bg-slate-950/40 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-medium text-rose-300">Incident #{incident.id}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-rose-300">Incident #{incident.id}</span>
+                  <StateBadge label="open" tone="error" />
+                </div>
                 <span className="text-xs text-slate-400">{incident.monitor_name ?? `Monitor ${incident.monitor_id}`}</span>
               </div>
               <p className="mt-1 text-xs text-slate-400">Opened {formatDate(incident.opened_at)}</p>
-              <p className="mt-1 text-xs text-slate-400">Last error: {incident.last_error ?? "-"}</p>
+              <p className="mt-1 text-xs text-rose-200/90">Last error: {incident.last_error ?? "-"}</p>
             </li>
           ))}
           {status.open_incidents.length === 0 && <li className="text-slate-400">No open incidents in this window.</li>}
         </ul>
-      </div>
+      </Panel>
 
       <footer className="text-xs text-slate-500">
         API version {version.version} | commit {version.commit} | built {version.built_at}

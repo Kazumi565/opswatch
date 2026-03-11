@@ -22,3 +22,117 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+@layer components {
+  .ow-page {
+    @apply space-y-5;
+  }
+
+  .ow-page-header {
+    @apply flex flex-wrap items-start justify-between gap-3;
+  }
+
+  .ow-page-title {
+    @apply text-xl font-semibold tracking-tight text-slate-100;
+  }
+
+  .ow-page-subtitle {
+    @apply mt-1 text-sm text-slate-400;
+  }
+
+  .ow-page-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .ow-panel {
+    @apply rounded-xl border border-white/10 bg-slate-900/45;
+  }
+
+  .ow-panel-muted {
+    @apply bg-slate-900/35;
+  }
+
+  .ow-panel-critical {
+    @apply border-rose-500/30 bg-rose-950/30;
+  }
+
+  .ow-section-title {
+    @apply text-sm font-semibold text-slate-200;
+  }
+
+  .ow-section-subtitle {
+    @apply mt-1 text-xs text-slate-400;
+  }
+
+  .ow-kpi-label {
+    @apply text-xs uppercase tracking-[0.18em] text-slate-400;
+  }
+
+  .ow-kpi-value {
+    @apply mt-2 text-2xl font-semibold text-slate-100;
+  }
+
+  .ow-kpi-meta {
+    @apply ml-2 text-sm font-normal text-slate-400;
+  }
+
+  .ow-btn-secondary {
+    @apply rounded-md border border-white/20 px-3 py-1.5 text-xs text-slate-200 transition hover:border-white/50 hover:text-white;
+  }
+
+  .ow-btn-primary {
+    @apply rounded-md border border-accent/50 bg-accent/20 px-3 py-2 text-sm font-medium text-accent transition hover:border-accent/70 hover:bg-accent/25;
+  }
+
+  .ow-btn-toggle {
+    @apply rounded-md border px-3 py-1.5 text-xs transition;
+  }
+
+  .ow-btn-toggle-active {
+    @apply border-accent/60 bg-accent/20 text-accent;
+  }
+
+  .ow-btn-toggle-inactive {
+    @apply border-white/20 text-slate-200 hover:border-white/50 hover:text-white;
+  }
+
+  .ow-field-label {
+    @apply text-sm text-slate-300;
+  }
+
+  .ow-input {
+    @apply mt-1 w-full rounded-md border border-white/20 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-100;
+  }
+
+  .ow-table-shell {
+    @apply overflow-x-auto rounded-xl border border-white/10 bg-slate-950/20;
+  }
+
+  .ow-table {
+    @apply w-full text-sm;
+  }
+
+  .ow-th {
+    @apply px-3 py-3 text-left text-xs uppercase tracking-[0.14em] text-slate-400;
+  }
+
+  .ow-td {
+    @apply px-3 py-3 align-top text-slate-300;
+  }
+
+  .ow-row {
+    @apply bg-slate-950/30;
+  }
+
+  .ow-row-alt {
+    @apply bg-slate-950/45;
+  }
+
+  .ow-row-hover {
+    @apply hover:bg-slate-900/55;
+  }
+
+  .ow-row-selected {
+    @apply bg-accent/10;
+  }
+}

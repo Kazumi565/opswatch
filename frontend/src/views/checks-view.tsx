@@ -1,8 +1,14 @@
 "use client";
 
+import Link from "next/link";
+
+import { DataTable, DataTableShell } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
+import { PageHeader } from "@/components/page-header";
+import { Panel } from "@/components/panel";
+import { StateBadge } from "@/components/state-badge";
 import { formatDate, formatDurationMs } from "@/lib/format";
 import { checkRunSchema, monitorSchema } from "@/lib/schemas";
 import { firstError, useApiQuery } from "@/lib/use-api-query";
@@ -28,6 +34,16 @@ function buildRunsPath(success: "all" | "true" | "false", monitorId: number | nu
   return `/opswatch-api/api/runs?${params.toString()}`;
 }
 
+function activeSuccessLabel(success: "all" | "true" | "false") {
+  if (success == "true") {
+    return "success only";
+  }
+  if (success == "false") {
+    return "failures only";
+  }
+  return "all";
+}
+
 export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
   const monitorsQuery = useApiQuery("/opswatch-api/api/monitors", monitorSchema.array());
 
@@ -47,40 +63,49 @@ export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
   const monitorNames = new Map(monitors.map((item) => [item.id, item.name]));
   const runs = runsQuery.data ?? [];
 
-  return (
-    <div className="space-y-5" data-testid="checks-view">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Checks</h2>
-        <button
-          type="button"
-          onClick={() => Promise.all([monitorsQuery.mutate(), runsQuery.mutate()])}
-          className="rounded-md border border-white/20 px-3 py-1.5 text-xs hover:border-white/50"
-        >
-          Refresh now
-        </button>
-      </div>
+  const selectedMonitorName =
+    monitorId == null ? "all monitors" : monitorNames.get(monitorId) ?? `Monitor ${monitorId}`;
 
-      <form action="/checks" method="get" className="grid gap-3 rounded-xl border border-white/10 bg-slate-900/45 p-4 md:grid-cols-4">
-        <label className="text-sm text-slate-300">
-          Success
-          <select
-            name="success"
-            defaultValue={success}
-            className="mt-1 w-full rounded-md border border-white/20 bg-slate-950/60 px-2 py-1.5 text-sm"
+  const failedRuns = runs.filter((run) => !run.success).length;
+
+  return (
+    <div className="ow-page" data-testid="checks-view">
+      <PageHeader
+        title="Checks"
+        description="Recent execution feed with monitor filters and failure context."
+        actions={
+          <button
+            type="button"
+            onClick={() => Promise.all([monitorsQuery.mutate(), runsQuery.mutate()])}
+            className="ow-btn-secondary"
           >
+            Refresh now
+          </button>
+        }
+      />
+
+      <Panel className="p-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+          <span className="uppercase tracking-[0.16em] text-slate-400">Active filters</span>
+          <StateBadge label={`status ${activeSuccessLabel(success)}`} tone="neutral" />
+          <StateBadge label={`monitor ${selectedMonitorName}`} tone="neutral" />
+          <StateBadge label={`limit ${limit}`} tone="neutral" />
+        </div>
+      </Panel>
+
+      <form action="/checks" method="get" className="grid gap-3 ow-panel p-4 md:grid-cols-4">
+        <label className="ow-field-label">
+          Success
+          <select name="success" defaultValue={success} className="ow-input">
             <option value="all">All</option>
             <option value="true">Success only</option>
             <option value="false">Failures only</option>
           </select>
         </label>
 
-        <label className="text-sm text-slate-300">
+        <label className="ow-field-label">
           Monitor
-          <select
-            name="monitor"
-            defaultValue={monitorId == null ? "all" : String(monitorId)}
-            className="mt-1 w-full rounded-md border border-white/20 bg-slate-950/60 px-2 py-1.5 text-sm"
-          >
+          <select name="monitor" defaultValue={monitorId == null ? "all" : String(monitorId)} className="ow-input">
             <option value="all">All monitors</option>
             {monitors.map((monitor) => (
               <option key={monitor.id} value={monitor.id}>
@@ -90,60 +115,82 @@ export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
           </select>
         </label>
 
-        <label className="text-sm text-slate-300">
+        <label className="ow-field-label">
           Limit
-          <input
-            name="limit"
-            type="number"
-            min={1}
-            max={500}
-            defaultValue={limit}
-            className="mt-1 w-full rounded-md border border-white/20 bg-slate-950/60 px-2 py-1.5 text-sm"
-          />
+          <input name="limit" type="number" min={1} max={500} defaultValue={limit} className="ow-input" />
         </label>
 
-        <div className="flex items-end">
-          <button type="submit" className="w-full rounded-md border border-accent/50 bg-accent/20 px-3 py-2 text-sm text-accent">
+        <div className="flex items-end gap-2">
+          <button type="submit" className="ow-btn-primary w-full">
             Apply filters
           </button>
+          <Link href="/checks" className="ow-btn-secondary whitespace-nowrap">
+            Reset
+          </Link>
         </div>
       </form>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Panel className="p-4">
+          <p className="ow-kpi-label">Rows loaded</p>
+          <p className="ow-kpi-value">{runs.length}</p>
+        </Panel>
+        <Panel className="p-4">
+          <p className="ow-kpi-label">Failures in result</p>
+          <p className="ow-kpi-value text-rose-300">{failedRuns}</p>
+        </Panel>
+        <Panel className="p-4">
+          <p className="ow-kpi-label">Selected monitor</p>
+          <p className="mt-2 text-sm font-medium text-slate-100">{selectedMonitorName}</p>
+        </Panel>
+      </div>
 
       {runs.length == 0 ? (
         <EmptyState message="No check runs for the selected filters." />
       ) : (
-        <section className="overflow-x-auto rounded-xl border border-white/10">
-          <table className="min-w-[920px] w-full text-sm">
-            <thead className="bg-slate-900/70 text-left text-xs uppercase tracking-[0.14em] text-slate-400">
+        <DataTableShell>
+          <DataTable className="min-w-[1080px]">
+            <thead className="bg-slate-900/70">
               <tr>
-                <th className="px-3 py-3">Run</th>
-                <th className="px-3 py-3">Monitor</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Started</th>
-                <th className="px-3 py-3">Duration</th>
-                <th className="px-3 py-3">Error</th>
+                <th className="ow-th">Run</th>
+                <th className="ow-th">Monitor</th>
+                <th className="ow-th">Status</th>
+                <th className="ow-th">Started</th>
+                <th className="ow-th">Duration</th>
+                <th className="ow-th">Code</th>
+                <th className="ow-th">Attempts</th>
+                <th className="ow-th">Error</th>
               </tr>
             </thead>
             <tbody>
-              {runs.map((run) => {
+              {runs.map((run, index) => {
                 const monitorLabel = run.monitor_name ?? monitorNames.get(run.monitor_id) ?? `Monitor ${run.monitor_id}`;
+                const rowClass = index % 2 === 0 ? "ow-row" : "ow-row-alt";
                 return (
-                  <tr key={run.id} className="bg-slate-950/30">
-                    <td className="px-3 py-3 font-medium text-slate-200">#{run.id}</td>
-                    <td className="px-3 py-3 text-slate-300">
+                  <tr key={run.id} className={`${rowClass} ow-row-hover`}>
+                    <td className="ow-td font-medium text-slate-200">#{run.id}</td>
+                    <td className="ow-td text-slate-300">
                       <p className="font-medium text-slate-200">{monitorLabel}</p>
                       <p className="text-xs text-slate-400">ID {run.monitor_id}</p>
                     </td>
-                    <td className="px-3 py-3 text-slate-200"><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${run.success ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-rose-500/40 bg-rose-500/15 text-rose-300"}`}>{run.success ? "success" : "failure"}</span></td>
-                    <td className="px-3 py-3 text-slate-300">{formatDate(run.started_at)}</td>
-                    <td className="px-3 py-3 text-slate-300">{formatDurationMs(run.duration_ms)}</td>
-                    <td className="max-w-72 px-3 py-3 text-rose-300"><span className="block truncate" title={run.error ?? ""}>{run.error ?? "-"}</span></td>
+                    <td className="ow-td text-slate-200">
+                      <StateBadge label={run.success ? "success" : "failure"} tone={run.success ? "ok" : "error"} />
+                    </td>
+                    <td className="ow-td text-slate-300">{formatDate(run.started_at)}</td>
+                    <td className="ow-td text-slate-300">{formatDurationMs(run.duration_ms)}</td>
+                    <td className="ow-td text-slate-300">{run.status_code ?? "-"}</td>
+                    <td className="ow-td text-slate-300">{run.attempts}</td>
+                    <td className="ow-td max-w-72">
+                      <span className={`block truncate ${run.error ? "text-rose-300" : "text-slate-400"}`} title={run.error ?? ""}>
+                        {run.error ?? "-"}
+                      </span>
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
-          </table>
-        </section>
+          </DataTable>
+        </DataTableShell>
       )}
     </div>
   );
