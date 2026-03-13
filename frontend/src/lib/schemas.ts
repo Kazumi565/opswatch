@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+export const incidentEventSchema = z.object({
+  id: z.number(),
+  incident_id: z.number(),
+  event_type: z.enum(["opened", "acknowledged", "resolved", "note_added"]),
+  actor: z.string(),
+  note: z.string().nullable(),
+  created_at: z.string(),
+});
+
 export const checkRunSchema = z.object({
   id: z.number(),
   monitor_id: z.number(),
@@ -23,6 +32,11 @@ const monitorBriefSchema = z.object({
   id: z.number(),
   name: z.string(),
   type: z.string(),
+  service: z.string(),
+  environment: z.string(),
+  owner: z.string(),
+  severity: z.enum(["critical", "high", "medium", "low"]),
+  runbook_url: z.string().nullable(),
   target: z.string(),
   enabled: z.boolean(),
   interval_seconds: z.number(),
@@ -37,6 +51,7 @@ const maintenanceSchema = z.object({
 
 const incidentBriefSchema = z.object({
   id: z.number(),
+  state: z.enum(["open", "acknowledged", "resolved"]),
   opened_at: z.string(),
   failure_count: z.number(),
   last_error: z.string().nullable(),
@@ -56,11 +71,17 @@ export const incidentSchema = z.object({
   id: z.number(),
   monitor_id: z.number(),
   monitor_name: z.string().nullable().optional(),
-  status: z.string(),
+  state: z.enum(["open", "acknowledged", "resolved"]),
   opened_at: z.string(),
   resolved_at: z.string().nullable(),
   failure_count: z.number(),
   last_error: z.string().nullable(),
+  service: z.string(),
+  environment: z.string(),
+  owner: z.string(),
+  severity: z.enum(["critical", "high", "medium", "low"]),
+  runbook_url: z.string().nullable(),
+  timeline: z.array(incidentEventSchema).nullable().optional(),
 });
 
 const windowSchema = z.object({
@@ -83,15 +104,38 @@ export const summarySchema = z.object({
     enabled: z.number(),
   }),
   incidents: z.object({
-    open: z.number(),
-    latest_open: z.array(
+    open_total: z.number(),
+    open_actionable: z.number(),
+    latest_total_open: z.array(
       z.object({
         id: z.number(),
         monitor_id: z.number(),
         monitor_name: z.string().nullable().optional(),
+        state: z.enum(["open", "acknowledged", "resolved"]),
         opened_at: z.string(),
         failure_count: z.number(),
         last_error: z.string().nullable(),
+        service: z.string(),
+        environment: z.string(),
+        owner: z.string(),
+        severity: z.enum(["critical", "high", "medium", "low"]),
+        runbook_url: z.string().nullable(),
+      }),
+    ),
+    latest_actionable_open: z.array(
+      z.object({
+        id: z.number(),
+        monitor_id: z.number(),
+        monitor_name: z.string().nullable().optional(),
+        state: z.enum(["open", "acknowledged", "resolved"]),
+        opened_at: z.string(),
+        failure_count: z.number(),
+        last_error: z.string().nullable(),
+        service: z.string(),
+        environment: z.string(),
+        owner: z.string(),
+        severity: z.enum(["critical", "high", "medium", "low"]),
+        runbook_url: z.string().nullable(),
       }),
     ),
   }),
@@ -103,12 +147,7 @@ export const overviewSchema = z.object({
 });
 
 export const monitorStatsSchema = z.object({
-  monitor: z.object({
-    id: z.number(),
-    name: z.string(),
-    type: z.string(),
-    target: z.string(),
-  }),
+  monitor: monitorBriefSchema,
   window: windowSchema,
   runs: z.object({
     total: z.number(),
@@ -132,6 +171,11 @@ export const monitorSchema = z.object({
   id: z.number(),
   name: z.string(),
   type: z.string(),
+  service: z.string(),
+  environment: z.string(),
+  owner: z.string(),
+  severity: z.enum(["critical", "high", "medium", "low"]),
+  runbook_url: z.string().nullable(),
   target: z.string(),
   interval_seconds: z.number(),
   timeout_seconds: z.number(),

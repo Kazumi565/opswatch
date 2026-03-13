@@ -1,24 +1,41 @@
 from datetime import UTC, datetime
 
-from opswatch_worker.models import CheckRun, MaintenanceWindow, Monitor
-from sqlalchemy import or_, select, text
+from opswatch_worker.models import CheckRun, Incident, IncidentEvent, MaintenanceWindow, Monitor
+from sqlalchemy import or_, select
+
+ACTIVE_INCIDENT_STATES = ("open", "acknowledged")
 
 
 def now_utc():
     return datetime.now(UTC)
 
 
+def add_incident_event(
+    db,
+    *,
+    incident_id: int,
+    event_type: str,
+    actor: str = "system",
+    note: str | None = None,
+    created_at: datetime | None = None,
+) -> None:
+    db.add(
+        IncidentEvent(
+            incident_id=incident_id,
+            event_type=event_type,
+            actor=actor,
+            note=note,
+            created_at=created_at or now_utc(),
+        )
+    )
+
+
 def evaluate_incident(db, monitor_id: int) -> None:
-    # Load threshold (default 3)
     m = db.scalar(select(Monitor).where(Monitor.id == monitor_id))
     if not m:
         return
 
-    threshold = int(getattr(m, "incident_threshold", 3) or 3)
-    if threshold < 1:
-        threshold = 1
-
-    # Latest run
+    threshold = max(1, int(getattr(m, "incident_threshold", 3) or 3))
     latest = db.scalar(
         select(CheckRun)
         .where(CheckRun.monitor_id == monitor_id)
@@ -28,11 +45,8 @@ def evaluate_incident(db, monitor_id: int) -> None:
     if not latest:
         return
 
-    success = latest.success
-
     now = now_utc()
-
-    mw = db.execute(
+    maintenance_window = db.scalar(
         select(MaintenanceWindow)
         .where(
             MaintenanceWindow.starts_at <= now,
@@ -44,60 +58,29 @@ def evaluate_incident(db, monitor_id: int) -> None:
         )
         .order_by(MaintenanceWindow.id.desc())
         .limit(1)
-    ).scalar_one_or_none()
-
-    maintenance_active = mw is not None
-
-    if maintenance_active:
-        print(
-            f"[maintenance] active for monitor={monitor_id} window_id={mw.id} "
-            f"ends_at={mw.ends_at} reason={mw.reason!r}"
+    )
+    active_incident = db.scalar(
+        select(Incident)
+        .where(
+            Incident.monitor_id == monitor_id,
+            Incident.state.in_(ACTIVE_INCIDENT_STATES),
         )
+        .order_by(Incident.id.desc())
+        .limit(1)
+    )
 
-    # Check for open incident
-    open_inc = db.execute(
-        text(
-            """
-            SELECT id
-            FROM incidents
-            WHERE monitor_id = :mid AND status = 'open'
-            ORDER BY id DESC
-            LIMIT 1
-            """
-        ),
-        {"mid": monitor_id},
-    ).fetchone()
-
-    if maintenance_active:
-        if open_inc:
-            db.execute(
-                text(
-                    """
-                    UPDATE incidents
-                    SET status='resolved', resolved_at=:now
-                    WHERE id=:id
-                    """
-                ),
-                {"id": open_inc.id, "now": now},
+    if latest.success:
+        if active_incident:
+            active_incident.state = "resolved"
+            active_incident.resolved_at = now
+            add_incident_event(
+                db,
+                incident_id=active_incident.id,
+                event_type="resolved",
+                created_at=now,
             )
         return
 
-    if success:
-        # resolve if open
-        if open_inc:
-            db.execute(
-                text(
-                    """
-                    UPDATE incidents
-                    SET status='resolved', resolved_at=:now
-                    WHERE id=:id
-                    """
-                ),
-                {"id": open_inc.id, "now": now},
-            )
-        return
-
-    # Compute consecutive failures
     recent = db.execute(
         select(CheckRun.success, CheckRun.error)
         .where(CheckRun.monitor_id == monitor_id)
@@ -105,36 +88,41 @@ def evaluate_incident(db, monitor_id: int) -> None:
         .limit(200)
     ).all()
 
-    consec = 0
-    last_err = latest.error
-
-    for s, err in recent:
-        if s:
+    consecutive_failures = 0
+    last_error = latest.error
+    for success, error in recent:
+        if success:
             break
-        consec += 1
-        if last_err is None and err:
-            last_err = err
+        consecutive_failures += 1
+        if last_error is None and error:
+            last_error = error
 
-    if open_inc:
-        db.execute(
-            text(
-                """
-                UPDATE incidents
-                SET failure_count=:fc, last_error=:err
-                WHERE id=:id
-                """
-            ),
-            {"id": open_inc.id, "fc": consec, "err": last_err},
-        )
+    if active_incident:
+        active_incident.failure_count = consecutive_failures
+        active_incident.last_error = last_error
         return
 
-    if consec >= threshold:
-        db.execute(
-            text(
-                """
-                INSERT INTO incidents (monitor_id, status, opened_at, failure_count, last_error)
-                VALUES (:mid, 'open', :now, :fc, :err)
-                 """
-            ),
-            {"mid": monitor_id, "now": now, "fc": consec, "err": last_err},
-        )
+    if maintenance_window or consecutive_failures < threshold:
+        return
+
+    incident = Incident(
+        monitor_id=m.id,
+        state="open",
+        opened_at=now,
+        resolved_at=None,
+        failure_count=consecutive_failures,
+        last_error=last_error,
+        service=m.service,
+        environment=m.environment,
+        owner=m.owner,
+        severity=m.severity,
+        runbook_url=m.runbook_url,
+    )
+    db.add(incident)
+    db.flush()
+    add_incident_event(
+        db,
+        incident_id=incident.id,
+        event_type="opened",
+        created_at=now,
+    )

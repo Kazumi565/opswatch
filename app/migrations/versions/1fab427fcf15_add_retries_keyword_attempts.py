@@ -27,8 +27,11 @@ def upgrade() -> None:
         "check_runs", sa.Column("attempts", sa.Integer(), nullable=False, server_default="1")
     )
 
-    op.alter_column("monitors", "retries", server_default=None)
-    op.alter_column("check_runs", "attempts", server_default=None)
+    with op.batch_alter_table("monitors") as batch_op:
+        batch_op.alter_column("retries", server_default=None)
+
+    with op.batch_alter_table("check_runs") as batch_op:
+        batch_op.alter_column("attempts", server_default=None)
 
 
 def downgrade() -> None:

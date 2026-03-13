@@ -25,6 +25,17 @@
       timeout: 3s
       retries: 20
 
+  migrate:
+    build:
+      context: ./app
+    command: ["sh", "-c", "alembic -c alembic.ini upgrade head"]
+    volumes:
+      - ./app:/app
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: ./app
@@ -32,11 +43,27 @@
     volumes:
       - ./app:/app
     env_file: .env
+    environment:
+      APP_COMMIT: ${APP_COMMIT}
+      APP_BUILT_AT: ${APP_BUILT_AT}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import sys, urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5); sys.exit(0)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     ports:
       - "8000:8000"
 
@@ -54,7 +81,7 @@
       - frontend_node_modules:/frontend/node_modules
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "3001:3000"
 
@@ -71,6 +98,8 @@
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   scheduler:
     build:
@@ -87,6 +116,8 @@
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: ["python", "-m", "opswatch_worker.scheduler"]
 
     restart: unless-stopped

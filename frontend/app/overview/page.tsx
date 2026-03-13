@@ -1,4 +1,4 @@
-﻿import { OverviewView } from "@/views/overview-view";
+import { OverviewView } from "@/views/overview-view";
 
 function parseMinutes(value: string | string[] | undefined): number {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -9,6 +9,14 @@ function parseMinutes(value: string | string[] | undefined): number {
   return Math.min(10080, Math.max(5, Math.floor(parsed)));
 }
 
+function parseFilter(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || raw == "all") {
+    return null;
+  }
+  return raw;
+}
+
 export default async function OverviewPage({
   searchParams,
 }: {
@@ -16,5 +24,14 @@ export default async function OverviewPage({
 }) {
   const params = await searchParams;
   const minutes = parseMinutes(params.minutes);
-  return <OverviewView minutes={minutes} />;
+  const serviceFilter = parseFilter(params.service);
+  const environmentFilter = parseFilter(params.environment);
+
+  return (
+    <OverviewView
+      minutes={minutes}
+      serviceFilter={serviceFilter}
+      environmentFilter={environmentFilter}
+    />
+  );
 }

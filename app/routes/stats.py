@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from deps import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from models import CheckRun, Monitor
+from payloads import serialize_monitor_brief
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -87,10 +88,7 @@ def monitor_stats(
 
     return {
         "monitor": {
-            "id": m.id,
-            "name": m.name,
-            "type": m.type.value if hasattr(m.type, "value") else str(m.type),
-            "target": m.target,
+            **serialize_monitor_brief(m),
         },
         "window": {"minutes": minutes, "start": start.isoformat(), "end": end.isoformat()},
         "runs": {

@@ -1,4 +1,4 @@
-﻿SHELL := /bin/bash
+SHELL := /bin/bash
 COMPOSE := docker compose
 OBS_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile observability
 OBS_DEV_FAST_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.observability.dev-fast.yml --profile observability
@@ -6,11 +6,14 @@ DEPLOY_ENV_FILE ?= deploy/.env.vm
 DEPLOY_PROJECT ?= opswatch
 DEPLOY_COMPOSE := docker compose --project-name $(DEPLOY_PROJECT) --env-file $(DEPLOY_ENV_FILE) -f docker-compose.deploy.yml
 DEPLOY_OBS_COMPOSE := docker compose --project-name $(DEPLOY_PROJECT) --env-file $(DEPLOY_ENV_FILE) -f docker-compose.deploy.yml -f docker-compose.deploy.observability.yml --profile observability
+BUILD_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+BUILD_UTC := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+BUILD_METADATA_ENV := APP_COMMIT=$(BUILD_COMMIT) APP_BUILT_AT=$(BUILD_UTC)
 
 .PHONY: help up down restart ps logs api-logs worker-logs scheduler-logs build pull \
-        lint fmt test ci reset-db clean volumes obs-up obs-down obs-up-dev-fast \
+        lint fmt test ci reset-db clean volumes obs-up obs-down obs-up-dev-fast showcase-up showcase-obs-up \
         frontend-up frontend-down frontend-install frontend-lint frontend-typecheck frontend-test frontend-build \
-        deploy-up deploy-up-obs deploy-down deploy-down-obs deploy-ps deploy-logs deploy-migrate \
+        demo-seed deploy-up deploy-up-obs deploy-down deploy-down-obs deploy-ps deploy-logs deploy-migrate \
         deploy-validate deploy-backup deploy-restore
 
 help:
@@ -18,11 +21,13 @@ help:
 	@echo ""
 	@echo "Core stack:"
 	@echo "  make up             Start core backend stack"
+	@echo "  make showcase-up    Start core stack with injected git/build metadata"
 	@echo "  make down           Stop core backend stack"
 	@echo "  make restart        Restart core backend stack"
 	@echo ""
 	@echo "Observability:"
 	@echo "  make obs-up         Start backend + observability (standard rules)"
+	@echo "  make showcase-obs-up Start backend + observability with injected git/build metadata"
 	@echo "  make obs-up-dev-fast Start backend + observability (dev-fast alert rules)"
 	@echo "  make obs-down       Stop backend + observability stack"
 	@echo ""
@@ -44,6 +49,7 @@ help:
 	@echo "  make frontend-typecheck Run frontend typecheck"
 	@echo "  make frontend-test   Run frontend tests"
 	@echo "  make frontend-build  Build frontend"
+	@echo "  make demo-seed       Seed realistic demo data into an empty database"
 	@echo ""
 	@echo "Logs:"
 	@echo "  make logs            Follow logs (all core services)"
@@ -63,6 +69,9 @@ help:
 
 up:
 	$(COMPOSE) up -d --build
+
+showcase-up:
+	$(BUILD_METADATA_ENV) $(COMPOSE) up -d --build
 
 down:
 	$(COMPOSE) down
@@ -108,6 +117,9 @@ ci:
 
 obs-up:
 	$(OBS_COMPOSE) up -d --build
+
+showcase-obs-up:
+	$(BUILD_METADATA_ENV) $(OBS_COMPOSE) up -d --build
 
 obs-up-dev-fast:
 	$(OBS_DEV_FAST_COMPOSE) up -d --build
@@ -166,6 +178,9 @@ deploy-backup:
 deploy-restore:
 	@test -n "$(BACKUP_FILE)" || (echo "Usage: make deploy-restore DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env BACKUP_FILE=/path/to/opswatch-*.dump"; exit 1)
 	OPSWATCH_ENV_FILE="$(DEPLOY_ENV_FILE)" OPSWATCH_PROJECT_NAME="$(DEPLOY_PROJECT)" OPSWATCH_BACKUP_FILE="$(BACKUP_FILE)" ./deploy/scripts/restore_postgres.sh
+
+demo-seed:
+	$(COMPOSE) exec -T api python demo_seed.py
 
 reset-db:
 	$(COMPOSE) down -v

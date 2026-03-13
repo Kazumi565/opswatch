@@ -1,11 +1,15 @@
 from datetime import UTC, datetime, timedelta
 
 from deps import get_db
+from domain import ACTIVE_INCIDENT_STATES
 from fastapi import APIRouter, Depends
-from models import CheckRun, Incident, MaintenanceWindow, Monitor
+from models import CheckRun, Incident, Monitor
+from payloads import serialize_incident_brief, serialize_monitor_brief
 from schemas import OverviewOut
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+
+from routes.maintenance_state import load_active_maintenance_state
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
@@ -30,20 +34,7 @@ def overview(minutes: int = 60, db: Session = Depends(get_db)):
     start = end - timedelta(minutes=minutes)
 
     monitors = list(db.scalars(select(Monitor).order_by(Monitor.id)).all())
-
-    active_windows = db.scalars(
-        select(MaintenanceWindow)
-        .where(MaintenanceWindow.starts_at <= end, MaintenanceWindow.ends_at >= end)
-        .order_by(MaintenanceWindow.id.desc())
-    ).all()
-
-    global_window = next((window for window in active_windows if window.monitor_id is None), None)
-    monitor_windows: dict[int, MaintenanceWindow] = {}
-    for window in active_windows:
-        if window.monitor_id is None:
-            continue
-        if window.monitor_id not in monitor_windows:
-            monitor_windows[window.monitor_id] = window
+    maintenance_state = load_active_maintenance_state(db, now=end)
 
     result = []
     for m in monitors:
@@ -103,12 +94,12 @@ def overview(minutes: int = 60, db: Session = Depends(get_db)):
         # open incident?
         open_inc = db.scalars(
             select(Incident)
-            .where(Incident.monitor_id == m.id, Incident.status == "open")
+            .where(Incident.monitor_id == m.id, Incident.state.in_(ACTIVE_INCIDENT_STATES))
             .order_by(Incident.opened_at.desc(), Incident.id.desc())
             .limit(1)
         ).first()
 
-        active_window = monitor_windows.get(m.id) or global_window
+        active_window = maintenance_state.window_for(m.id)
         maintenance = {
             "active": active_window is not None,
             "ends_at": active_window.ends_at if active_window else None,
@@ -126,13 +117,7 @@ def overview(minutes: int = 60, db: Session = Depends(get_db)):
         result.append(
             {
                 "monitor": {
-                    "id": m.id,
-                    "name": m.name,
-                    "type": m.type.value if hasattr(m.type, "value") else str(m.type),
-                    "target": m.target,
-                    "enabled": m.enabled,
-                    "interval_seconds": m.interval_seconds,
-                    "timeout_seconds": m.timeout_seconds,
+                    **serialize_monitor_brief(m),
                 },
                 "uptime_pct": uptime_pct,
                 "latency_ms": {
@@ -144,16 +129,7 @@ def overview(minutes: int = 60, db: Session = Depends(get_db)):
                 "maintenance": maintenance,
                 "status": status,
                 "last_run": last_run_payload,
-                "open_incident": (
-                    {
-                        "id": open_inc.id,
-                        "opened_at": open_inc.opened_at.isoformat(),
-                        "failure_count": open_inc.failure_count,
-                        "last_error": open_inc.last_error,
-                    }
-                    if open_inc
-                    else None
-                ),
+                "open_incident": serialize_incident_brief(open_inc) if open_inc else None,
             }
         )
 

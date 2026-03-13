@@ -23,6 +23,11 @@ describe("API schemas", () => {
             id: 1,
             name: "API",
             type: "http",
+            service: "edge-api",
+            environment: "prod",
+            owner: "platform@opswatch.dev",
+            severity: "high",
+            runbook_url: "https://runbooks.example.com/edge-api",
             target: "https://example.com",
             enabled: true,
             interval_seconds: 60,
@@ -57,15 +62,38 @@ describe("API schemas", () => {
       summarySchema.parse({
         monitors: { total: 1, enabled: 1 },
         incidents: {
-          open: 1,
-          latest_open: [
+          open_total: 1,
+          open_actionable: 0,
+          latest_total_open: [
             {
               id: 3,
               monitor_id: 1,
               monitor_name: "API",
+              state: "open",
               opened_at: "2026-03-09T00:00:00Z",
               failure_count: 3,
               last_error: "timeout",
+              service: "edge-api",
+              environment: "prod",
+              owner: "platform@opswatch.dev",
+              severity: "high",
+              runbook_url: "https://runbooks.example.com/edge-api",
+            },
+          ],
+          latest_actionable_open: [
+            {
+              id: 3,
+              monitor_id: 1,
+              monitor_name: "API",
+              state: "open",
+              opened_at: "2026-03-09T00:00:00Z",
+              failure_count: 3,
+              last_error: "timeout",
+              service: "edge-api",
+              environment: "prod",
+              owner: "platform@opswatch.dev",
+              severity: "high",
+              runbook_url: "https://runbooks.example.com/edge-api",
             },
           ],
         },
@@ -84,11 +112,26 @@ describe("API schemas", () => {
         id: 1,
         monitor_id: 1,
         monitor_name: "API",
-        status: "open",
+        state: "open",
         opened_at: "2026-03-09T00:00:00Z",
         resolved_at: null,
         failure_count: 3,
         last_error: "timeout",
+        service: "edge-api",
+        environment: "prod",
+        owner: "platform@opswatch.dev",
+        severity: "high",
+        runbook_url: "https://runbooks.example.com/edge-api",
+        timeline: [
+          {
+            id: 11,
+            incident_id: 1,
+            event_type: "opened",
+            actor: "system",
+            note: null,
+            created_at: "2026-03-09T00:00:00Z",
+          },
+        ],
       }),
     ).toBeTruthy();
 
@@ -111,6 +154,11 @@ describe("API schemas", () => {
         id: 1,
         name: "API",
         type: "http",
+        service: "edge-api",
+        environment: "prod",
+        owner: "platform@opswatch.dev",
+        severity: "high",
+        runbook_url: "https://runbooks.example.com/edge-api",
         target: "https://example.com",
         interval_seconds: 60,
         timeout_seconds: 5,
@@ -124,14 +172,27 @@ describe("API schemas", () => {
 
     expect(
       monitorStatsSchema.parse({
-        monitor: { id: 1, name: "API", type: "http", target: "https://example.com" },
+        monitor: {
+          id: 1,
+          name: "API",
+          type: "http",
+          service: "edge-api",
+          environment: "prod",
+          owner: "platform@opswatch.dev",
+          severity: "high",
+          runbook_url: "https://runbooks.example.com/edge-api",
+          target: "https://example.com",
+          enabled: true,
+          interval_seconds: 60,
+          timeout_seconds: 5,
+        },
         window: { minutes: 60, start: "2026-03-08T23:00:00Z", end: "2026-03-09T00:00:00Z" },
         runs: { total: 10, success: 9, failure: 1, uptime_pct: 90 },
         latency_ms: { p50: 100, p95: 200, min: 80, max: 250 },
       }),
     ).toBeTruthy();
 
-    expect(versionSchema.parse({ version: "0.1.0", commit: "abc123", built_at: "2026-03-09T00:00:00Z" })).toBeTruthy();
+    expect(versionSchema.parse({ version: "0.2.0", commit: "abc123", built_at: "2026-03-09T00:00:00Z" })).toBeTruthy();
   });
 
   it("rejects invalid payloads", () => {

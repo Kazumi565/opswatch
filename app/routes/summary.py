@@ -1,56 +1,51 @@
 from deps import get_db
+from domain import ACTIVE_INCIDENT_STATES
 from fastapi import APIRouter, Depends
 from models import Incident, Monitor
-from sqlalchemy import func, select
+from payloads import serialize_incident
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from routes.maintenance_state import load_active_maintenance_state
 
 router = APIRouter(prefix="/api", tags=["summary"])
 
 
 @router.get("/summary")
 def summary(db: Session = Depends(get_db)):
-    total_monitors = db.scalar(select(func.count()).select_from(Monitor)) or 0
-    enabled_monitors = (
-        db.scalar(select(func.count()).select_from(Monitor).where(Monitor.enabled.is_(True))) or 0
-    )
+    monitors = list(db.scalars(select(Monitor).order_by(Monitor.id)).all())
+    maintenance_state = load_active_maintenance_state(db)
 
-    open_incidents = (
-        db.scalar(select(func.count()).select_from(Incident).where(Incident.status == "open")) or 0
-    )
-
-    # Optional: list the newest open incidents (lightweight, useful for UI)
-    latest_open = db.execute(
+    open_incidents_rows = db.execute(
         select(
-            Incident.id,
-            Incident.monitor_id,
+            Incident,
             Monitor.name.label("monitor_name"),
-            Incident.opened_at,
-            Incident.failure_count,
-            Incident.last_error,
         )
         .join(Monitor, Monitor.id == Incident.monitor_id)
-        .where(Incident.status == "open")
+        .where(Incident.state.in_(ACTIVE_INCIDENT_STATES))
         .order_by(Incident.opened_at.desc(), Incident.id.desc())
-        .limit(10)
     ).all()
+    actionable_open_rows = [
+        (incident, monitor_name)
+        for incident, monitor_name in open_incidents_rows
+        if not maintenance_state.active_for(incident.monitor_id)
+    ]
 
     return {
         "monitors": {
-            "total": total_monitors,
-            "enabled": enabled_monitors,
+            "total": len(monitors),
+            "enabled": sum(1 for monitor in monitors if monitor.enabled),
         },
         "incidents": {
-            "open": open_incidents,
-            "latest_open": [
-                {
-                    "id": row.id,
-                    "monitor_id": row.monitor_id,
-                    "monitor_name": row.monitor_name,
-                    "opened_at": row.opened_at,
-                    "failure_count": row.failure_count,
-                    "last_error": row.last_error,
-                }
-                for row in latest_open
+            "open_total": len(open_incidents_rows),
+            "open_actionable": len(actionable_open_rows),
+            "latest_total_open": [
+                serialize_incident(incident, monitor_name)
+                for incident, monitor_name in open_incidents_rows[:10]
+            ],
+            "latest_actionable_open": [
+                serialize_incident(incident, monitor_name)
+                for incident, monitor_name in actionable_open_rows[:10]
             ],
         },
     }
