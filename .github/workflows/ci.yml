@@ -46,10 +46,10 @@ jobs:
 
       - name: Pytest
         env:
-          DATABASE_URL: sqlite+pysqlite:///:memory:
-          REDIS_URL: redis://localhost:6379/0
-          JWT_SECRET: ci-test-secret
-          OPSWATCH_API_KEY: ci-test-api-key
+          DATABASE_URL: "sqlite+pysqlite:///:memory:"
+          REDIS_URL: "redis://localhost:6379/0"
+          JWT_SECRET: "ci-test-secret"
+          OPSWATCH_API_KEY: "ci-test-api-key"
         run: python -m pytest -q -s
 
   frontend-quality:
