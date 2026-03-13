@@ -128,7 +128,7 @@ obs-down:
 	$(OBS_COMPOSE) down
 
 frontend-up:
-	$(COMPOSE) --profile frontend up -d frontend
+	$(COMPOSE) --profile frontend up -d --no-deps frontend
 
 frontend-down:
 	$(COMPOSE) --profile frontend down

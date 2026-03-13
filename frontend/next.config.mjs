@@ -7,6 +7,10 @@ const nextConfig = {
   async rewrites() {
     return [
       {
+        source: "/opswatch-api/api/:path*",
+        destination: `${opswatchApiOrigin}/api/:path*`,
+      },
+      {
         source: "/api/:path*",
         destination: `${opswatchApiOrigin}/api/:path*`,
       },

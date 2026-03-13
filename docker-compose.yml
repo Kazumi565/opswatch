@@ -44,8 +44,8 @@
       - ./app:/app
     env_file: .env
     environment:
-      APP_COMMIT: ${APP_COMMIT}
-      APP_BUILT_AT: ${APP_BUILT_AT}
+      APP_COMMIT: ${APP_COMMIT:-}
+      APP_BUILT_AT: ${APP_BUILT_AT:-}
     depends_on:
       postgres:
         condition: service_healthy
