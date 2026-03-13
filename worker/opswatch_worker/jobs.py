@@ -20,6 +20,11 @@ SYSTEM_CA_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
 MAX_BODY_BYTES = 16384
 
 
+def metric_label(value: str | None, fallback: str) -> str:
+    text = (value or "").strip()
+    return text or fallback
+
+
 def _parse_host_port(value: str):
     s = value.strip()
     if not s:
@@ -125,6 +130,14 @@ def run_check(monitor_id: int) -> None:
         if not m:
             return
 
+        check_type = str(m.type.value if hasattr(m.type, "value") else m.type)
+        monitor_labels = {
+            "type": check_type,
+            "service": metric_label(getattr(m, "service", None), "unassigned"),
+            "environment": metric_label(getattr(m, "environment", None), "unknown"),
+            "severity": metric_label(getattr(m, "severity", None), "medium"),
+        }
+
         attempts = 0
         success = False
         status_code = None
@@ -146,7 +159,10 @@ def run_check(monitor_id: int) -> None:
                     error = f"check type not implemented: {m.type}"
                     success = False
             except Exception as e:
-                CHECK_EXCEPTIONS_TOTAL.labels(type=str(m.type), exception=type(e).__name__).inc()
+                CHECK_EXCEPTIONS_TOTAL.labels(
+                    **monitor_labels,
+                    exception=type(e).__name__,
+                ).inc()
                 error = f"{type(e).__name__}: {e}"
                 success = False
 
@@ -157,10 +173,9 @@ def run_check(monitor_id: int) -> None:
                 time.sleep(min(1.0, 0.2 * (2**i)))
 
         dur_ms = int((time.perf_counter() - t0) * 1000)
-        check_type = str(m.type)  # "http" / "tcp" / "dns"
-        CHECK_DURATION_SECONDS.labels(type=check_type).observe(dur_ms / 1000.0)
-        CHECK_ATTEMPTS.labels(type=check_type).observe(attempts)
-        CHECK_RUNS_TOTAL.labels(type=check_type, success=str(success).lower()).inc()
+        CHECK_DURATION_SECONDS.labels(**monitor_labels).observe(dur_ms / 1000.0)
+        CHECK_ATTEMPTS.labels(**monitor_labels).observe(attempts)
+        CHECK_RUNS_TOTAL.labels(**monitor_labels, success=str(success).lower()).inc()
 
         db.add(
             CheckRun(

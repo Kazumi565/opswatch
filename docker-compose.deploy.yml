@@ -1,0 +1,157 @@
+services:
+  caddy:
+    image: caddy:2.9.1
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      OPSWATCH_DOMAIN: ${OPSWATCH_DOMAIN:?set OPSWATCH_DOMAIN in env file}
+      OPSWATCH_ACME_EMAIL: ${OPSWATCH_ACME_EMAIL:?set OPSWATCH_ACME_EMAIL in env file}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in env file}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in env file}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in env file}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  api:
+    image: ghcr.io/${OPSWATCH_GHCR_OWNER:?set OPSWATCH_GHCR_OWNER in env file}/opswatch-api:${OPSWATCH_IMAGE_TAG:?set OPSWATCH_IMAGE_TAG in env file}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in env file}
+      REDIS_URL: ${REDIS_URL:?set REDIS_URL in env file}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in env file}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2)",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+
+  worker:
+    image: ghcr.io/${OPSWATCH_GHCR_OWNER:?set OPSWATCH_GHCR_OWNER in env file}/opswatch-worker:${OPSWATCH_IMAGE_TAG:?set OPSWATCH_IMAGE_TAG in env file}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in env file}
+      REDIS_URL: ${REDIS_URL:?set REDIS_URL in env file}
+      PYTHONPATH: /worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9101/metrics', timeout=2)",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+
+  scheduler:
+    image: ghcr.io/${OPSWATCH_GHCR_OWNER:?set OPSWATCH_GHCR_OWNER in env file}/opswatch-scheduler:${OPSWATCH_IMAGE_TAG:?set OPSWATCH_IMAGE_TAG in env file}
+    command: ["python", "-m", "opswatch_worker.scheduler"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in env file}
+      REDIS_URL: ${REDIS_URL:?set REDIS_URL in env file}
+      PYTHONPATH: /worker
+      RQ_QUEUE: checks
+      SCHEDULER_POLL_SECONDS: ${SCHEDULER_POLL_SECONDS:-5}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    image: ghcr.io/${OPSWATCH_GHCR_OWNER:?set OPSWATCH_GHCR_OWNER in env file}/opswatch-frontend:${OPSWATCH_IMAGE_TAG:?set OPSWATCH_IMAGE_TAG in env file}
+    restart: unless-stopped
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+      OPSWATCH_API_ORIGIN: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  prober:
+    image: ghcr.io/${OPSWATCH_GHCR_OWNER:?set OPSWATCH_GHCR_OWNER in env file}/opswatch-prober:${OPSWATCH_IMAGE_TAG:?set OPSWATCH_IMAGE_TAG in env file}
+    restart: unless-stopped
+    profiles: ["prober"]
+    environment:
+      REDIS_URL: ${REDIS_URL:?set REDIS_URL in env file}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  migrate:
+    image: ghcr.io/${OPSWATCH_GHCR_OWNER:?set OPSWATCH_GHCR_OWNER in env file}/opswatch-api:${OPSWATCH_IMAGE_TAG:?set OPSWATCH_IMAGE_TAG in env file}
+    command: ["alembic", "upgrade", "head"]
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in env file}
+      REDIS_URL: ${REDIS_URL:?set REDIS_URL in env file}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in env file}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pgdata:

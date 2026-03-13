@@ -1,0 +1,19 @@
+[Unit]
+Description=OpsWatch Docker Compose Stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/opswatch
+EnvironmentFile=-/etc/opswatch/opswatch.systemd.env
+ExecStartPre=/usr/bin/docker compose --project-name opswatch --env-file /etc/opswatch/opswatch.env -f /opt/opswatch/docker-compose.deploy.yml -f /opt/opswatch/docker-compose.deploy.observability.yml config -q
+ExecStart=/usr/bin/docker compose --project-name opswatch --env-file /etc/opswatch/opswatch.env -f /opt/opswatch/docker-compose.deploy.yml -f /opt/opswatch/docker-compose.deploy.observability.yml up -d
+ExecStop=/usr/bin/docker compose --project-name opswatch --env-file /etc/opswatch/opswatch.env -f /opt/opswatch/docker-compose.deploy.yml -f /opt/opswatch/docker-compose.deploy.observability.yml down
+TimeoutStartSec=0
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

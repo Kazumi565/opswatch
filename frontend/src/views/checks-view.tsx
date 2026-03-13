@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/panel";
+import { RefreshButton } from "@/components/refresh-button";
 import { StateBadge } from "@/components/state-badge";
 import { formatDate, formatDurationMs } from "@/lib/format";
 import { checkRunSchema, monitorSchema } from "@/lib/schemas";
@@ -46,9 +47,7 @@ function activeSuccessLabel(success: "all" | "true" | "false") {
 
 export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
   const monitorsQuery = useApiQuery("/opswatch-api/api/monitors", monitorSchema.array());
-
-  const runsPath = buildRunsPath(success, monitorId, limit);
-  const runsQuery = useApiQuery(runsPath, checkRunSchema.array());
+  const runsQuery = useApiQuery(buildRunsPath(success, monitorId, limit), checkRunSchema.array());
 
   if ((monitorsQuery.isLoading && !monitorsQuery.data) || (runsQuery.isLoading && !runsQuery.data)) {
     return <LoadingState message="Loading checks feed..." />;
@@ -62,10 +61,8 @@ export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
   const monitors = monitorsQuery.data ?? [];
   const monitorNames = new Map(monitors.map((item) => [item.id, item.name]));
   const runs = runsQuery.data ?? [];
-
   const selectedMonitorName =
     monitorId == null ? "all monitors" : monitorNames.get(monitorId) ?? `Monitor ${monitorId}`;
-
   const failedRuns = runs.filter((run) => !run.success).length;
 
   return (
@@ -73,15 +70,7 @@ export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
       <PageHeader
         title="Checks"
         description="Recent execution feed with monitor filters and failure context."
-        actions={
-          <button
-            type="button"
-            onClick={() => Promise.all([monitorsQuery.mutate(), runsQuery.mutate()])}
-            className="ow-btn-secondary"
-          >
-            Refresh now
-          </button>
-        }
+        actions={<RefreshButton onRefresh={() => Promise.all([monitorsQuery.mutate(), runsQuery.mutate()])} />}
       />
 
       <Panel className="p-3">
@@ -91,6 +80,10 @@ export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
           <StateBadge label={`monitor ${selectedMonitorName}`} tone="neutral" />
           <StateBadge label={`limit ${limit}`} tone="neutral" />
         </div>
+        <p className="mt-2 text-xs text-slate-400">
+          The UI refetches API data every 30 seconds. New rows appear when scheduled or manual checks finish,
+          so fresh executions can land later than the poll interval.
+        </p>
       </Panel>
 
       <form action="/checks" method="get" className="grid gap-3 ow-panel p-4 md:grid-cols-4">
@@ -166,6 +159,7 @@ export function ChecksView({ success, monitorId, limit }: ChecksViewProps) {
               {runs.map((run, index) => {
                 const monitorLabel = run.monitor_name ?? monitorNames.get(run.monitor_id) ?? `Monitor ${run.monitor_id}`;
                 const rowClass = index % 2 === 0 ? "ow-row" : "ow-row-alt";
+
                 return (
                   <tr key={run.id} className={`${rowClass} ow-row-hover`}>
                     <td className="ow-td font-medium text-slate-200">#{run.id}</td>

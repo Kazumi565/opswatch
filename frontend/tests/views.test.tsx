@@ -72,6 +72,11 @@ const statusPayload = {
         id: 1,
         name: "API",
         type: "http",
+        service: "edge-api",
+        environment: "prod",
+        owner: "platform@opswatch.dev",
+        severity: "high",
+        runbook_url: "https://runbooks.example.com/edge-api",
         target: "https://example.com",
         enabled: true,
         interval_seconds: 60,
@@ -95,12 +100,73 @@ const statusPayload = {
       open_incident: null,
     },
   ],
-  open_incidents: [],
+  open_incidents: [
+    {
+      id: 11,
+      monitor_id: 1,
+      monitor_name: "API",
+      state: "acknowledged",
+      opened_at: "2026-03-09T00:00:00Z",
+      resolved_at: null,
+      failure_count: 3,
+      last_error: "timeout",
+      service: "edge-api",
+      environment: "prod",
+      owner: "platform@opswatch.dev",
+      severity: "high",
+      runbook_url: "https://runbooks.example.com/edge-api",
+      timeline: [
+        {
+          id: 101,
+          incident_id: 11,
+          event_type: "opened",
+          actor: "system",
+          note: null,
+          created_at: "2026-03-09T00:00:00Z",
+        },
+      ],
+    },
+  ],
 };
 
 const summaryPayload = {
   monitors: { total: 1, enabled: 1 },
-  incidents: { open: 0, latest_open: [] },
+  incidents: {
+    open_total: 1,
+    open_actionable: 1,
+    latest_total_open: [
+      {
+        id: 11,
+        monitor_id: 1,
+        monitor_name: "API",
+        state: "acknowledged",
+        opened_at: "2026-03-09T00:00:00Z",
+        failure_count: 3,
+        last_error: "timeout",
+        service: "edge-api",
+        environment: "prod",
+        owner: "platform@opswatch.dev",
+        severity: "high",
+        runbook_url: "https://runbooks.example.com/edge-api",
+      },
+    ],
+    latest_actionable_open: [
+      {
+        id: 11,
+        monitor_id: 1,
+        monitor_name: "API",
+        state: "acknowledged",
+        opened_at: "2026-03-09T00:00:00Z",
+        failure_count: 3,
+        last_error: "timeout",
+        service: "edge-api",
+        environment: "prod",
+        owner: "platform@opswatch.dev",
+        severity: "high",
+        runbook_url: "https://runbooks.example.com/edge-api",
+      },
+    ],
+  },
 };
 
 const overviewPayload = {
@@ -109,7 +175,20 @@ const overviewPayload = {
 };
 
 const monitorStatsPayload = {
-  monitor: { id: 1, name: "API", type: "http", target: "https://example.com" },
+  monitor: {
+    id: 1,
+    name: "API",
+    type: "http",
+    service: "edge-api",
+    environment: "prod",
+    owner: "platform@opswatch.dev",
+    severity: "high",
+    runbook_url: "https://runbooks.example.com/edge-api",
+    target: "https://example.com",
+    enabled: true,
+    interval_seconds: 60,
+    timeout_seconds: 5,
+  },
   window: { minutes: 60, start: "2026-03-08T23:00:00Z", end: "2026-03-09T00:00:00Z" },
   runs: { total: 10, success: 9, failure: 1, uptime_pct: 90 },
   latency_ms: { p50: 100, p95: 150, min: 70, max: 210 },
@@ -134,19 +213,59 @@ const incidentsPayload = [
     id: 11,
     monitor_id: 1,
     monitor_name: "API",
-    status: "open",
+    state: "acknowledged",
     opened_at: "2026-03-09T00:00:00Z",
     resolved_at: null,
     failure_count: 3,
     last_error: "timeout",
+    service: "edge-api",
+    environment: "prod",
+    owner: "platform@opswatch.dev",
+    severity: "high",
+    runbook_url: "https://runbooks.example.com/edge-api",
   },
 ];
+
+const incidentDetailPayload = {
+  ...incidentsPayload[0],
+  timeline: [
+    {
+      id: 101,
+      incident_id: 11,
+      event_type: "opened",
+      actor: "system",
+      note: null,
+      created_at: "2026-03-09T00:00:00Z",
+    },
+    {
+      id: 102,
+      incident_id: 11,
+      event_type: "acknowledged",
+      actor: "api_key",
+      note: null,
+      created_at: "2026-03-09T00:05:00Z",
+    },
+    {
+      id: 103,
+      incident_id: 11,
+      event_type: "note_added",
+      actor: "api_key",
+      note: "Investigating packet loss",
+      created_at: "2026-03-09T00:06:00Z",
+    },
+  ],
+};
 
 const monitorPayload = [
   {
     id: 1,
     name: "API",
     type: "http",
+    service: "edge-api",
+    environment: "prod",
+    owner: "platform@opswatch.dev",
+    severity: "high",
+    runbook_url: "https://runbooks.example.com/edge-api",
     target: "https://example.com",
     interval_seconds: 60,
     timeout_seconds: 5,
@@ -168,13 +287,30 @@ describe("dashboard views", () => {
       { match: "/api/status", body: statusPayload },
       { match: "/api/summary", body: summaryPayload },
       { match: "/api/stats/overview", body: overviewPayload },
-      { match: "/api/version", body: { version: "0.1.0", commit: "abc", built_at: "2026-03-09T00:00:00Z" } },
+      { match: "/api/version", body: { version: "0.2.0", commit: "abc", built_at: "2026-03-09T00:00:00Z" } },
     ]);
 
-    renderWithSWR(<OverviewView minutes={60} />);
+    renderWithSWR(<OverviewView minutes={60} serviceFilter={null} environmentFilter={null} />);
 
     expect(await screen.findByTestId("overview-view")).toBeInTheDocument();
     expect(screen.getByText("Overview")).toBeInTheDocument();
+    expect(screen.getByText("Service ownership groups")).toBeInTheDocument();
+    expect(screen.getByText("API version 0.2.0 | commit abc | built 2026-03-09T00:00:00Z")).toBeInTheDocument();
+  });
+
+  it("hides placeholder build metadata in local overview footer", async () => {
+    mockFetch([
+      { match: "/api/status", body: statusPayload },
+      { match: "/api/summary", body: summaryPayload },
+      { match: "/api/stats/overview", body: overviewPayload },
+      { match: "/api/version", body: { version: "0.2.0", commit: "unknown", built_at: "unknown" } },
+    ]);
+
+    renderWithSWR(<OverviewView minutes={60} serviceFilter={null} environmentFilter={null} />);
+
+    expect(await screen.findByTestId("overview-view")).toBeInTheDocument();
+    expect(screen.getByText("API version 0.2.0")).toBeInTheDocument();
+    expect(screen.queryByText(/unknown/i)).not.toBeInTheDocument();
   });
 
   it("renders monitors page with drilldown data", async () => {
@@ -184,20 +320,27 @@ describe("dashboard views", () => {
       { match: "/api/monitors/1/runs", body: runsPayload },
     ]);
 
-    renderWithSWR(<MonitorsView minutes={60} selectedMonitorId={1} />);
+    renderWithSWR(
+      <MonitorsView minutes={60} selectedMonitorId={1} serviceFilter={null} environmentFilter={null} />,
+    );
 
     expect(await screen.findByTestId("monitors-view")).toBeInTheDocument();
     expect(screen.getByText("Selected monitor")).toBeInTheDocument();
+    expect(screen.getByText("Runbook")).toBeInTheDocument();
   });
 
-  it("renders incidents page using monitor names", async () => {
-    mockFetch([{ match: "/api/incidents/open", body: incidentsPayload }]);
+  it("renders incidents page using monitor names and timeline detail", async () => {
+    mockFetch([
+      { match: "/api/incidents/open", body: incidentsPayload },
+      { match: "/api/incidents/11", body: incidentDetailPayload },
+    ]);
 
-    renderWithSWR(<IncidentsView scope="open" />);
+    renderWithSWR(<IncidentsView scope="open" selectedIncidentId={11} />);
 
     expect(await screen.findByTestId("incidents-view")).toBeInTheDocument();
     expect(screen.getAllByText("API").length).toBeGreaterThan(0);
     expect(screen.getByText("ID 1")).toBeInTheDocument();
+    expect(screen.getByText("Timeline")).toBeInTheDocument();
   });
 
   it("renders checks page with monitor names", async () => {
@@ -211,6 +354,7 @@ describe("dashboard views", () => {
     expect(await screen.findByTestId("checks-view")).toBeInTheDocument();
     expect(screen.getByText("#20")).toBeInTheDocument();
     expect(screen.getAllByText("API").length).toBeGreaterThan(0);
+    expect(screen.getByText(/The UI refetches API data every 30 seconds/i)).toBeInTheDocument();
   });
 
   it("shows loading state while waiting for overview data", () => {
@@ -221,7 +365,7 @@ describe("dashboard views", () => {
         }),
     );
 
-    renderWithSWR(<OverviewView minutes={60} />);
+    renderWithSWR(<OverviewView minutes={60} serviceFilter={null} environmentFilter={null} />);
 
     expect(screen.getByText("Loading overview telemetry...")).toBeInTheDocument();
   });
@@ -231,10 +375,10 @@ describe("dashboard views", () => {
       { match: "/api/status", status: 500, body: { detail: "boom" } },
       { match: "/api/summary", body: summaryPayload },
       { match: "/api/stats/overview", body: overviewPayload },
-      { match: "/api/version", body: { version: "0.1.0", commit: "abc", built_at: "2026-03-09T00:00:00Z" } },
+      { match: "/api/version", body: { version: "0.2.0", commit: "abc", built_at: "2026-03-09T00:00:00Z" } },
     ]);
 
-    renderWithSWR(<OverviewView minutes={60} />);
+    renderWithSWR(<OverviewView minutes={60} serviceFilter={null} environmentFilter={null} />);
 
     expect(await screen.findByText("Data fetch failed")).toBeInTheDocument();
   });
@@ -242,9 +386,11 @@ describe("dashboard views", () => {
   it("shows empty state when monitors list is empty", async () => {
     mockFetch([{ match: "/api/stats/overview", body: { window: overviewPayload.window, monitors: [] } }]);
 
-    renderWithSWR(<MonitorsView minutes={60} selectedMonitorId={null} />);
+    renderWithSWR(
+      <MonitorsView minutes={60} selectedMonitorId={null} serviceFilter={null} environmentFilter={null} />,
+    );
 
-    expect(await screen.findByText("No monitors available yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No monitors available for the selected ownership filters.")).toBeInTheDocument();
   });
 
   it("shows empty state when checks feed is empty", async () => {

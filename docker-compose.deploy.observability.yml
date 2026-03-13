@@ -1,0 +1,60 @@
+services:
+  worker:
+    expose:
+      - "9101"
+
+  prometheus:
+    image: prom/prometheus:v2.53.4
+    profiles: ["observability"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus.dev-fast.yml:/etc/prometheus/prometheus.dev-fast.yml:ro
+      - ./observability/prometheus/rules/opswatch.alerts.yml:/etc/prometheus/rules/opswatch.alerts.yml:ro
+      - ./observability/prometheus/rules/opswatch.alerts.dev-fast.yml:/etc/prometheus/rules/opswatch.alerts.dev-fast.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      api:
+        condition: service_started
+      worker:
+        condition: service_started
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    profiles: ["observability"]
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+    restart: unless-stopped
+
+  alert-receiver:
+    image: ealen/echo-server:0.9.2
+    profiles: ["observability"]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:11.2.3
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:?set GF_SECURITY_ADMIN_PASSWORD in env file}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  grafana_data:

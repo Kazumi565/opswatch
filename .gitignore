@@ -3,6 +3,7 @@
 .env
 .env.*
 !.env.example
+!deploy/.env.vm.example
 .venv/
 .idea/
 .vscode/
@@ -12,3 +13,8 @@ frontend/node_modules/
 frontend/.next/
 frontend/coverage/
 frontend/.turbo/
+
+# Deployment local files
+deploy/.env.vm
+deploy/backups/
+deploy/systemd/opswatch.systemd.env

@@ -46,10 +46,11 @@ jobs:
 
       - name: Pytest
         env:
-          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/opswatch_ci
+          DATABASE_URL: sqlite+pysqlite:///:memory:
           REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: ci-test-secret
-        run: python -m pytest -q
+          OPSWATCH_API_KEY: ci-test-api-key
+        run: python -m pytest -q -s
 
   frontend-quality:
     runs-on: ubuntu-latest
@@ -83,11 +84,149 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Capture build metadata
+        run: |
+          echo "APP_COMMIT=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          echo "APP_BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Docker compose build
         run: docker compose build --pull
+
+      - name: Validate deploy compose config
+        run: |
+          docker compose \
+            --env-file deploy/.env.vm.example \
+            -f docker-compose.deploy.yml \
+            -f docker-compose.deploy.observability.yml \
+            --profile observability config >/dev/null
+
+      - name: Validate deploy script syntax
+        run: |
+          bash -n deploy/scripts/backup_postgres.sh
+          bash -n deploy/scripts/restore_postgres.sh
+          bash -n deploy/scripts/validate_deploy.sh
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Capture build metadata
+        run: |
+          echo "APP_COMMIT=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          echo "APP_BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
+      - name: Prepare .env for smoke test
+        run: |
+          cp .env.example .env
+          python - <<'PY'
+          from pathlib import Path
+
+          env_file = Path(".env")
+          text = env_file.read_text()
+          text = text.replace("POSTGRES_PASSWORD=change_me", "POSTGRES_PASSWORD=opswatch_ci_password")
+          text = text.replace(
+              "DATABASE_URL=postgresql+psycopg://opswatch:change_me@postgres:5432/opswatch",
+              "DATABASE_URL=postgresql+psycopg://opswatch:opswatch_ci_password@postgres:5432/opswatch",
+          )
+          text = text.replace(
+              "OPSWATCH_API_KEY=replace-with-a-long-random-api-key",
+              "OPSWATCH_API_KEY=ci-smoke-api-key",
+          )
+          env_file.write_text(text)
+          PY
+
+      - name: Start core stack
+        run: docker compose up -d --build postgres redis migrate api worker scheduler
+
+      - name: Smoke test boot path
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          import urllib.request
+
+          BASE = "http://127.0.0.1:8000"
+          HEADERS = {
+              "Content-Type": "application/json",
+              "X-API-Key": "ci-smoke-api-key",
+          }
+
+          def request_json(method: str, path: str, payload=None):
+              body = None if payload is None else json.dumps(payload).encode()
+              request = urllib.request.Request(
+                  BASE + path,
+                  data=body,
+                  method=method,
+                  headers=HEADERS if payload is not None or method != "GET" else {},
+              )
+              with urllib.request.urlopen(request, timeout=10) as response:
+                  return response.status, json.loads(response.read().decode() or "null")
+
+          deadline = time.time() + 90
+          while True:
+              try:
+                  status, payload = request_json("GET", "/ready")
+                  if status == 200 and payload["status"] == "ok":
+                      break
+              except Exception:
+                  pass
+
+              if time.time() > deadline:
+                  raise SystemExit("API readiness check timed out")
+              time.sleep(2)
+
+          status, created = request_json(
+              "POST",
+              "/api/monitors",
+              {
+                  "name": "ci-dns-failure",
+                  "type": "dns",
+                  "service": "dns",
+                  "environment": "ci",
+                  "owner": "ci@opswatch.dev",
+                  "severity": "critical",
+                  "runbook_url": "https://runbooks.example.com/ci-dns",
+                  "target": "https://not-a-hostname",
+                  "interval_seconds": 60,
+                  "timeout_seconds": 1,
+                  "incident_threshold": 1,
+                  "retries": 0,
+                  "enabled": True,
+              },
+          )
+          assert status == 201, created
+          monitor_id = created["id"]
+
+          status, enqueued = request_json("POST", f"/api/monitors/{monitor_id}/run")
+          assert status == 202, enqueued
+
+          deadline = time.time() + 60
+          while True:
+              status, runs = request_json("GET", f"/api/monitors/{monitor_id}/runs")
+              if status == 200 and runs:
+                  break
+
+              if time.time() > deadline:
+                  raise SystemExit("worker did not produce a run in time")
+              time.sleep(2)
+
+          assert runs[0]["success"] is False
+          assert "dns target must be hostname only" in (runs[0]["error"] or "")
+          PY
+
+      - name: Print compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v
 
   trivy-fs:
     runs-on: ubuntu-latest

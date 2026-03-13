@@ -13,5 +13,9 @@ const STYLE_BY_TONE: Record<StateTone, string> = {
 };
 
 export function StateBadge({ label, tone }: StateBadgeProps) {
-  return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${STYLE_BY_TONE[tone]}`}>{label}</span>;
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${STYLE_BY_TONE[tone]}`}>
+      {label}
+    </span>
+  );
 }

@@ -1,4 +1,4 @@
-﻿import { MonitorsView } from "@/views/monitors-view";
+import { MonitorsView } from "@/views/monitors-view";
 
 function parseMinutes(value: string | string[] | undefined): number {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -21,6 +21,14 @@ function parseOptionalMonitor(value: string | string[] | undefined): number | nu
   return Math.floor(parsed);
 }
 
+function parseFilter(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || raw == "all") {
+    return null;
+  }
+  return raw;
+}
+
 export default async function MonitorsPage({
   searchParams,
 }: {
@@ -29,5 +37,15 @@ export default async function MonitorsPage({
   const params = await searchParams;
   const minutes = parseMinutes(params.minutes);
   const selectedMonitorId = parseOptionalMonitor(params.monitor);
-  return <MonitorsView minutes={minutes} selectedMonitorId={selectedMonitorId} />;
+  const serviceFilter = parseFilter(params.service);
+  const environmentFilter = parseFilter(params.environment);
+
+  return (
+    <MonitorsView
+      minutes={minutes}
+      selectedMonitorId={selectedMonitorId}
+      serviceFilter={serviceFilter}
+      environmentFilter={environmentFilter}
+    />
+  );
 }

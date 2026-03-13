@@ -1,12 +1,18 @@
 /** @type {import('next').NextConfig} */
-const opswatchApiOrigin = process.env.OPSWATCH_API_ORIGIN ?? "http://localhost:8000";
+const defaultApiOrigin = process.env.NODE_ENV === "production" ? "http://api:8000" : "http://localhost:8000";
+const opswatchApiOrigin = process.env.OPSWATCH_API_ORIGIN ?? defaultApiOrigin;
 
 const nextConfig = {
+  output: "standalone",
   async rewrites() {
     return [
       {
-        source: "/opswatch-api/:path*",
-        destination: `${opswatchApiOrigin}/:path*`,
+        source: "/opswatch-api/api/:path*",
+        destination: `${opswatchApiOrigin}/api/:path*`,
+      },
+      {
+        source: "/api/:path*",
+        destination: `${opswatchApiOrigin}/api/:path*`,
       },
     ];
   },
