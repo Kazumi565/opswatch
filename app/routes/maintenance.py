@@ -5,18 +5,22 @@ from deps import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from models import MaintenanceWindow, Monitor
 from schemas import MaintenanceCreate, MaintenanceOut
-from security import require_api_key
+from security import AuthContext, require_authenticated_context, require_programmer_context
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
+router = APIRouter(
+    prefix="/api/maintenance",
+    tags=["maintenance"],
+    dependencies=[Depends(require_authenticated_context)],
+)
 
 
 @router.post("", response_model=MaintenanceOut, status_code=201)
 def create_window(
     payload: MaintenanceCreate,
     db: Session = Depends(get_db),
-    actor: str = Depends(require_api_key),
+    auth: AuthContext = Depends(require_programmer_context),
 ):
     if payload.monitor_id is not None:
         m = db.get(Monitor, payload.monitor_id)
@@ -31,7 +35,7 @@ def create_window(
     db.flush()
     record_audit_event(
         db,
-        actor=actor,
+        actor=auth.actor,
         action="maintenance.create",
         resource_type="maintenance_window",
         resource_id=w.id,
@@ -65,7 +69,7 @@ def list_windows(active: bool = False, db: Session = Depends(get_db)):
 def delete_window(
     window_id: int,
     db: Session = Depends(get_db),
-    actor: str = Depends(require_api_key),
+    auth: AuthContext = Depends(require_programmer_context),
 ):
     w = db.get(MaintenanceWindow, window_id)
     if not w:
@@ -79,7 +83,7 @@ def delete_window(
     db.delete(w)
     record_audit_event(
         db,
-        actor=actor,
+        actor=auth.actor,
         action="maintenance.delete",
         resource_type="maintenance_window",
         resource_id=window_id,

@@ -6,16 +6,17 @@ It demonstrates the full operational loop:
 
 `define monitor -> migrate -> schedule checks -> execute checks -> evaluate incidents -> acknowledge and track -> audit control-plane changes -> expose metrics -> visualize -> alert`
 
-## What 0.2.0 Adds
+## What 0.3.0 Adds
 
-- migration-gated startup from an empty database
-- realistic demo seed data via `make demo-seed`
-- API-key protection for mutating routes
-- audit log for control-plane actions
-- ownership-aware monitors: `service`, `environment`, `owner`, `severity`, `runbook_url`
-- incident lifecycle states: `open`, `acknowledged`, `resolved`
-- incident timeline events and operator notes
-- Prometheus labels enriched with safe ownership context
+- human authentication with server-issued `HttpOnly` session cookies
+- fixed roles: `user`, `programmer`, `admin`
+- protected dashboard routes and authenticated read APIs
+- backend role enforcement for every control-plane action
+- admin user management and bootstrap-first-admin flow
+- audit coverage for auth and user-management changes
+- lightweight CSRF protection on cookie-authenticated mutating routes
+- expired-session cleanup during normal auth flow
+- all `0.2.0` monitoring, incident, maintenance, audit, and ownership features remain intact
 
 ## Services
 
@@ -55,9 +56,13 @@ Important values:
 
 - `POSTGRES_PASSWORD`
 - `DATABASE_URL`
-- `OPSWATCH_API_KEY`
+- `OPSWATCH_AUTH_SECRET`
 
-Set `OPSWATCH_API_KEY` in your local `.env` to a long random secret. The committed `.env.example` uses placeholder values only.
+Optional values:
+
+- `OPSWATCH_API_KEY` for admin automation scripts that still use `X-API-Key`
+- `OPSWATCH_SESSION_TTL_HOURS` to shorten or extend session lifetime
+- `OPSWATCH_AUTH_COOKIE_SECURE=false` for local HTTP dev, `true` behind HTTPS
 
 ### 2. Start the core stack
 
@@ -89,13 +94,21 @@ make demo-seed
 
 The seed command is intentionally safe-by-default: it expects an empty database and exits if monitors already exist.
 
-### 5. Start the frontend
+### 5. Bootstrap the first admin
+
+```bash
+make create-admin ARGS='--email admin@example.com --display-name "Ops Admin"'
+```
+
+The command prompts for a password if you do not pass `--password`. It only succeeds when no users exist yet.
+
+### 6. Start the frontend and log in
 
 ```bash
 docker compose --profile frontend up -d frontend
 ```
 
-Dashboard URL: `http://localhost:3001`
+Open `http://localhost:3001/login` and sign in with the admin you just created.
 
 ## Demo From Fresh Clone
 
@@ -106,13 +119,14 @@ cp .env.example .env
 make showcase-up
 curl http://localhost:8000/ready
 make demo-seed
+make create-admin ARGS='--email admin@example.com --display-name "Ops Admin" --password change-me-now'
 docker compose --profile frontend up -d frontend
 ```
 
 Open:
 
 - API docs: `http://localhost:8000/docs`
-- Frontend dashboard: `http://localhost:3001`
+- Frontend login: `http://localhost:3001/login`
 - Ready check: `http://localhost:8000/ready`
 
 What the seeded dataset demonstrates:
@@ -138,42 +152,93 @@ Observability URLs:
 - Grafana: `http://localhost:3000`
 - Alert receiver: `http://localhost:8088`
 
-## Auth Model
+## Auth Overview
 
-Read routes are public in `0.2.0`.
+OpsWatch `0.3.0` uses DB-backed opaque sessions for human access:
 
-Mutating routes require the `X-API-Key` header and are checked against `OPSWATCH_API_KEY`.
+- `POST /api/auth/login` validates email/password, sets `opswatch_session`, and returns the current user
+- `POST /api/auth/logout` revokes the current session and clears cookies
+- `GET /api/auth/me` returns the active identity and role
+- browser auth uses `HttpOnly` cookies, not `localStorage`
+- mutating cookie-authenticated requests must include `X-CSRF-Token` matching the `opswatch_csrf` cookie
+- expired sessions are cleaned up opportunistically during normal auth checks
 
-Protected routes include:
+`OPSWATCH_API_KEY` can still be set as an optional admin automation/bootstrap path for non-browser callers. It is no longer the primary human auth model.
 
-- monitor create/update/delete
-- manual run enqueue
-- maintenance create/delete
-- incident acknowledge
-- incident note creation
+Public endpoints remain intentionally small:
 
-Example:
+- `GET /health`
+- `GET /health/live`
+- `GET /health/ready`
+- `GET /ready`
+- `GET /api/version`
+- `GET /metrics`
 
-```bash
-curl -X POST http://localhost:8000/api/monitors \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: replace-with-a-long-random-api-key' \
-  -d '{
-    "name": "edge-api-prod",
-    "type": "http",
-    "service": "edge-api",
-    "environment": "prod",
-    "owner": "platform@opswatch.dev",
-    "severity": "high",
-    "runbook_url": "https://runbooks.example.com/edge-api",
-    "target": "https://example.com",
-    "interval_seconds": 60,
-    "timeout_seconds": 5,
-    "incident_threshold": 3,
-    "retries": 0,
-    "enabled": true
-  }'
-```
+Everything else requires authentication.
+
+## Roles
+
+### `user`
+
+- can log in and view overview, monitors, incidents, checks, history, and profile/session info
+- cannot acknowledge incidents
+- cannot add incident notes
+- cannot trigger manual runs
+- cannot create or delete maintenance windows
+- cannot manage monitors
+- cannot manage users
+- cannot read audit logs
+
+### `programmer`
+
+- can do everything a `user` can do
+- can acknowledge incidents
+- can add incident notes
+- can trigger manual runs
+- can create maintenance windows
+- can delete maintenance windows
+- cannot edit maintenance windows in `0.3.0`
+- cannot manage monitors
+- cannot manage users or roles
+- cannot read audit logs
+
+### `admin`
+
+- can do everything a `programmer` can do
+- can create, update, and delete monitors
+- can list, create, update, activate, deactivate, and re-role users
+- can read audit logs
+- can use optional API-key admin automation
+
+Safety rules enforced on the backend:
+
+- inactive users cannot log in
+- admins cannot deactivate themselves
+- admins cannot demote themselves out of `admin`
+- the last active admin cannot be deactivated or demoted
+
+## Permission Matrix
+
+- read APIs and dashboard pages: authenticated `user` or higher
+- incident acknowledge: `programmer` or `admin`
+- incident notes: `programmer` or `admin`
+- manual run enqueue: `programmer` or `admin`
+- maintenance create/delete: `programmer` or `admin`
+- maintenance edit: not implemented in `0.3.0`
+- monitor create/update/delete: `admin`
+- audit log read: `admin`
+- user list/create/update/role/active changes: `admin`
+
+## Local Dev Auth Flow
+
+1. Start the stack with `make up`.
+2. Create the first admin with `make create-admin`.
+3. Start the frontend with `make frontend-up` or `docker compose --profile frontend up -d frontend`.
+4. Visit `http://localhost:3001/login`.
+5. Sign in with the bootstrap admin.
+6. Use the `Users` page to create `user` and `programmer` accounts for role testing.
+
+For local API calls made with a browser session, first log in through `/api/auth/login` and then send the `X-CSRF-Token` header on mutating requests. For automation or smoke scripts, you may instead use `X-API-Key` when `OPSWATCH_API_KEY` is configured.
 
 ## Build Metadata
 
@@ -206,8 +271,11 @@ Use the deployment guide for production-like VM setup:
 Key deployment points:
 
 - pinned GHCR image references through the deploy compose files
-- Caddy TLS ingress in front of the API and Grafana
+- Caddy TLS ingress in front of the API and frontend
 - explicit `deploy-migrate` before `deploy-up`
+- `OPSWATCH_AUTH_SECRET` for session and CSRF signing
+- `OPSWATCH_AUTH_COOKIE_SECURE=true` for HTTPS
+- bootstrap the first admin with `make deploy-create-admin`
 - localhost-bound observability ports in deploy mode
 - backup and restore scripts for Postgres
 - validation script for post-deploy checks
@@ -246,6 +314,15 @@ docker compose start api
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /ready`
+
+### Auth and users
+
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `GET /api/users`
+- `POST /api/users`
+- `PATCH /api/users/{user_id}`
 
 ### Monitors
 
@@ -288,12 +365,12 @@ docker compose start api
 
 ## Release Verification Checklist
 
-Run these before calling `0.2.0` shippable:
+Run these before calling `0.3.0` shippable:
 
 ```bash
 uvx ruff check --config ruff.toml --ignore B008 .
 uvx ruff format --config ruff.toml --check .
-uvx pytest -q -s
+uv run --isolated --with-requirements app/requirements.txt --with-requirements worker/requirements.txt --with pytest pytest -q -s
 npm --prefix frontend run lint
 npm --prefix frontend run typecheck
 npm --prefix frontend run test
@@ -305,17 +382,22 @@ Smoke the real boot path:
 ```bash
 docker compose up -d --build postgres redis migrate api worker scheduler
 curl http://localhost:8000/ready
-make demo-seed
+make create-admin ARGS='--email admin@example.com --display-name "Ops Admin" --password change-me-now'
+docker compose --profile frontend up -d frontend
 docker compose down -v
 ```
 
 Expected signals:
 
 - API does not become ready before migrations are at head
-- demo seed populates monitors, runs, incidents, maintenance, and audit records
-- mutating routes reject missing or invalid API keys
-- `/api/audit` returns control-plane history
-- incidents show `open`, `acknowledged`, and `resolved` lifecycle behavior
+- bootstrap admin creation works only on a fresh userless database
+- login succeeds through `/api/auth/login` and the frontend login page
+- read routes reject unauthenticated access
+- `user` remains read-only
+- `programmer` can acknowledge, note, enqueue runs, and create/delete maintenance
+- `admin` can additionally manage monitors, users, and audit
+- mutating cookie-authenticated routes reject missing or invalid CSRF tokens
+- audit log records auth and admin-management history
 
 ## Helper Commands
 
@@ -329,12 +411,14 @@ make showcase-up
 make down
 make clean
 make demo-seed
+make create-admin ARGS='--email admin@example.com --display-name "Ops Admin"'
 make obs-up
 make obs-up-dev-fast
 make frontend-install
 make frontend-test
 make frontend-build
 make deploy-migrate DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
+make deploy-create-admin DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env ARGS='--email admin@example.com --display-name "Ops Admin"'
 make deploy-up DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
 make deploy-up-obs DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
 make deploy-validate DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env

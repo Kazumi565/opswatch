@@ -6,13 +6,18 @@ from fastapi import APIRouter, Depends
 from models import Incident, Monitor
 from payloads import serialize_incident
 from schemas import StatusOut
+from security import require_authenticated_context
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from routes.maintenance_state import load_active_maintenance_state
 from routes.overview import overview  # reuse existing logic
 
-router = APIRouter(prefix="/api", tags=["status"])
+router = APIRouter(
+    prefix="/api",
+    tags=["status"],
+    dependencies=[Depends(require_authenticated_context)],
+)
 
 
 @router.get("/status", response_model=StatusOut)

@@ -28,10 +28,16 @@ sudo chmod 600 /etc/opswatch/opswatch.env
 Set at minimum:
 
 - `OPSWATCH_GHCR_OWNER`
-- `OPSWATCH_IMAGE_TAG` (semver release tag, for example `v0.2.0`)
+- `OPSWATCH_IMAGE_TAG` (semver release tag, for example `v0.3.0`)
 - `OPSWATCH_DOMAIN`
 - `OPSWATCH_ACME_EMAIL`
-- database/redis/jwt values
+- database/redis/auth values
+- `OPSWATCH_AUTH_SECRET`
+- `OPSWATCH_AUTH_COOKIE_SECURE=true`
+
+Optional:
+
+- `OPSWATCH_API_KEY` if you want the admin automation fallback for non-browser clients
 
 ## 3) GHCR authentication expectations
 
@@ -62,10 +68,25 @@ Notes:
 - `deploy-migrate` is intentionally separate from `deploy-up`.
 - `deploy-up` starts core stack (Caddy + API + worker + scheduler + frontend + Postgres + Redis).
 - `deploy-up-obs` adds observability profile services.
+- Bootstrap the first admin after the stack is up:
+
+```bash
+make deploy-create-admin DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env ARGS='--email admin@example.com --display-name "Ops Admin"'
+```
+
+For deployment runs that use the deploy compose files directly, the equivalent command is:
+
+```bash
+docker compose \
+  --project-name opswatch \
+  --env-file /etc/opswatch/opswatch.env \
+  -f docker-compose.deploy.yml \
+  exec api python create_admin.py --email admin@example.com --display-name "Ops Admin"
+```
 
 ## 5) Access model
 
-Public:
+Public ingress:
 
 - `https://<OPSWATCH_DOMAIN>/` -> frontend
 - `https://<OPSWATCH_DOMAIN>/api/*` -> API

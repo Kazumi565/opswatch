@@ -7,6 +7,7 @@ MonitorType = Literal["http", "tcp", "dns"]
 MonitorSeverity = Literal["critical", "high", "medium", "low"]
 IncidentState = Literal["open", "acknowledged", "resolved"]
 IncidentEventType = Literal["opened", "acknowledged", "resolved", "note_added"]
+UserRole = Literal["user", "programmer", "admin"]
 
 
 class MonitorCreate(BaseModel):
@@ -28,6 +29,7 @@ class MonitorCreate(BaseModel):
 
 class MonitorUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
+    type: MonitorType | None = None
     service: str | None = Field(default=None, min_length=1, max_length=120)
     environment: str | None = Field(default=None, min_length=1, max_length=80)
     owner: str | None = Field(default=None, min_length=1, max_length=120)
@@ -203,3 +205,48 @@ class AuditEventOut(BaseModel):
     summary_json: dict[str, Any]
 
     model_config = {"from_attributes": True}
+
+
+class AuthLoginIn(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=8, max_length=200)
+
+
+class UserCreate(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    display_name: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=8, max_length=200)
+    role: UserRole = "user"
+    is_active: bool = True
+
+
+class UserUpdate(BaseModel):
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+    display_name: str | None = Field(default=None, min_length=1, max_length=120)
+    password: str | None = Field(default=None, min_length=8, max_length=200)
+    role: UserRole | None = None
+    is_active: bool | None = None
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    display_name: str
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    last_login_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class AuthMeOut(BaseModel):
+    id: int | None = None
+    email: str
+    display_name: str
+    role: UserRole
+    is_active: bool
+    auth_method: Literal["session", "api_key"]
+    last_login_at: datetime | None = None
+    session_expires_at: datetime | None = None

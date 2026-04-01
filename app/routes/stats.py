@@ -4,10 +4,15 @@ from deps import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from models import CheckRun, Monitor
 from payloads import serialize_monitor_brief
+from security import require_authenticated_context
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/api", tags=["stats"])
+router = APIRouter(
+    prefix="/api",
+    tags=["stats"],
+    dependencies=[Depends(require_authenticated_context)],
+)
 
 
 def clamp_minutes(minutes: int) -> int:

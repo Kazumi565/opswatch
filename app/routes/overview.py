@@ -6,12 +6,17 @@ from fastapi import APIRouter, Depends
 from models import CheckRun, Incident, Monitor
 from payloads import serialize_incident_brief, serialize_monitor_brief
 from schemas import OverviewOut
+from security import require_authenticated_context
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from routes.maintenance_state import load_active_maintenance_state
 
-router = APIRouter(prefix="/api/stats", tags=["stats"])
+router = APIRouter(
+    prefix="/api/stats",
+    tags=["stats"],
+    dependencies=[Depends(require_authenticated_context)],
+)
 
 
 def clamp_minutes(minutes: int) -> int:

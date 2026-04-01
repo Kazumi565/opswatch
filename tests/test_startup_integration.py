@@ -30,7 +30,7 @@ def purge_modules(prefixes: list[str]) -> None:
 def set_runtime_env(monkeypatch: pytest.MonkeyPatch, database_url: str) -> None:
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
-    monkeypatch.setenv("JWT_SECRET", "integration-secret")
+    monkeypatch.setenv("OPSWATCH_AUTH_SECRET", "integration-secret")
     monkeypatch.setenv("OPSWATCH_API_KEY", "integration-api-key")
 
 
@@ -57,7 +57,18 @@ def run_migrations(monkeypatch: pytest.MonkeyPatch, database_url: str) -> None:
 def load_app_module(monkeypatch: pytest.MonkeyPatch, database_url: str):
     set_runtime_env(monkeypatch, database_url)
     purge_modules(
-        ["main", "config", "db", "deps", "models", "routes", "security", "audit_log", "payloads"]
+        [
+            "main",
+            "config",
+            "db",
+            "deps",
+            "models",
+            "routes",
+            "security",
+            "audit_log",
+            "payloads",
+            "create_admin",
+        ]
     )
     reset_opswatch_metrics()
     return importlib.import_module("main")
@@ -73,6 +84,12 @@ def load_worker_jobs(monkeypatch: pytest.MonkeyPatch, database_url: str):
     set_runtime_env(monkeypatch, database_url)
     purge_modules(["opswatch_worker"])
     return importlib.import_module("opswatch_worker.jobs")
+
+
+def load_create_admin(monkeypatch: pytest.MonkeyPatch, database_url: str):
+    set_runtime_env(monkeypatch, database_url)
+    purge_modules(["create_admin"])
+    return importlib.import_module("create_admin")
 
 
 def test_empty_db_migrations_and_live_worker_boot_path(
@@ -120,9 +137,28 @@ def test_empty_db_migrations_and_live_worker_boot_path(
         ready_response = client.get("/ready")
         assert ready_response.status_code == 200
 
+        create_admin = load_create_admin(monkeypatch, database_url)
+        monkeypatch.setattr(
+            create_admin,
+            "parse_args",
+            lambda: SimpleNamespace(
+                email="admin@opswatch.dev",
+                display_name="Bootstrap Admin",
+                password="bootstrap-password",
+            ),
+        )
+        assert create_admin.main() == 0
+
+        login_response = client.post(
+            "/api/auth/login",
+            json={"email": "admin@opswatch.dev", "password": "bootstrap-password"},
+        )
+        assert login_response.status_code == 200
+        csrf_header = {"X-CSRF-Token": client.cookies.get("opswatch_csrf", "")}
+
         create_response = client.post(
             "/api/monitors",
-            headers={"X-API-Key": "integration-api-key"},
+            headers=csrf_header,
             json={
                 "name": "integration-dns-failure",
                 "type": "dns",
@@ -144,7 +180,7 @@ def test_empty_db_migrations_and_live_worker_boot_path(
 
         enqueue_response = client.post(
             f"/api/monitors/{monitor_id}/run",
-            headers={"X-API-Key": "integration-api-key"},
+            headers=csrf_header,
         )
         assert enqueue_response.status_code == 202
         assert enqueued == {

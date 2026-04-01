@@ -49,7 +49,10 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in env file}
       REDIS_URL: ${REDIS_URL:?set REDIS_URL in env file}
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in env file}
+      OPSWATCH_AUTH_SECRET: ${OPSWATCH_AUTH_SECRET:?set OPSWATCH_AUTH_SECRET in env file}
+      OPSWATCH_SESSION_TTL_HOURS: ${OPSWATCH_SESSION_TTL_HOURS:-12}
+      OPSWATCH_AUTH_COOKIE_SECURE: ${OPSWATCH_AUTH_COOKIE_SECURE:-true}
+      OPSWATCH_API_KEY: ${OPSWATCH_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -146,7 +149,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in env file}
       REDIS_URL: ${REDIS_URL:?set REDIS_URL in env file}
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in env file}
+      OPSWATCH_AUTH_SECRET: ${OPSWATCH_AUTH_SECRET:?set OPSWATCH_AUTH_SECRET in env file}
     depends_on:
       postgres:
         condition: service_healthy

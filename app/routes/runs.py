@@ -3,10 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from models import CheckRun, Monitor
 from payloads import serialize_check_run
 from schemas import CheckRunOut
+from security import require_authenticated_context
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/api", tags=["runs"])
+router = APIRouter(
+    prefix="/api", tags=["runs"], dependencies=[Depends(require_authenticated_context)]
+)
 
 
 def clamp_limit(limit: int) -> int:
@@ -42,7 +45,11 @@ def list_runs(
 
 
 @router.get("/monitors/{monitor_id}/runs", response_model=list[CheckRunOut])
-def list_monitor_runs(monitor_id: int, limit: int = 100, db: Session = Depends(get_db)):
+def list_monitor_runs(
+    monitor_id: int,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
     limit = clamp_limit(limit)
 
     monitor = db.get(Monitor, monitor_id)
@@ -61,7 +68,10 @@ def list_monitor_runs(monitor_id: int, limit: int = 100, db: Session = Depends(g
 
 
 @router.get("/runs/{run_id}", response_model=CheckRunOut)
-def get_run(run_id: int, db: Session = Depends(get_db)):
+def get_run(
+    run_id: int,
+    db: Session = Depends(get_db),
+):
     row = db.execute(
         select(CheckRun, Monitor.name.label("monitor_name"))
         .join(Monitor, Monitor.id == CheckRun.monitor_id)

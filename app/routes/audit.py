@@ -2,10 +2,15 @@ from deps import get_db
 from fastapi import APIRouter, Depends
 from models import AuditEvent
 from schemas import AuditEventOut
+from security import require_admin_read_context
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/api/audit", tags=["audit"])
+router = APIRouter(
+    prefix="/api/audit",
+    tags=["audit"],
+    dependencies=[Depends(require_admin_read_context)],
+)
 
 
 def clamp_limit(limit: int) -> int:

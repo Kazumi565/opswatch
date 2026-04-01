@@ -13,7 +13,7 @@ BUILD_METADATA_ENV := APP_COMMIT=$(BUILD_COMMIT) APP_BUILT_AT=$(BUILD_UTC)
 .PHONY: help up down restart ps logs api-logs worker-logs scheduler-logs build pull \
         lint fmt test ci reset-db clean volumes obs-up obs-down obs-up-dev-fast showcase-up showcase-obs-up \
         frontend-up frontend-down frontend-install frontend-lint frontend-typecheck frontend-test frontend-build \
-        demo-seed deploy-up deploy-up-obs deploy-down deploy-down-obs deploy-ps deploy-logs deploy-migrate \
+        demo-seed create-admin deploy-create-admin deploy-up deploy-up-obs deploy-down deploy-down-obs deploy-ps deploy-logs deploy-migrate \
         deploy-validate deploy-backup deploy-restore
 
 help:
@@ -37,6 +37,7 @@ help:
 	@echo "  make deploy-up-obs DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env   Start core + observability deploy stack"
 	@echo "  make deploy-down DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env     Stop core deploy stack"
 	@echo "  make deploy-down-obs DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env Stop core + observability deploy stack"
+	@echo "  make deploy-create-admin DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env ARGS='--email admin@example.com --display-name \"Ops Admin\"'"
 	@echo "  make deploy-validate DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env Validate live deployment endpoints"
 	@echo "  make deploy-backup DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env   Create pg_dump custom backup"
 	@echo "  make deploy-restore DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env BACKUP_FILE=/var/backups/opswatch/<file>.dump"
@@ -50,6 +51,7 @@ help:
 	@echo "  make frontend-test   Run frontend tests"
 	@echo "  make frontend-build  Build frontend"
 	@echo "  make demo-seed       Seed realistic demo data into an empty database"
+	@echo "  make create-admin ARGS='--email admin@example.com --display-name \"Ops Admin\"'  Bootstrap the first admin user"
 	@echo ""
 	@echo "Logs:"
 	@echo "  make logs            Follow logs (all core services)"
@@ -108,12 +110,12 @@ fmt:
 	uvx ruff format --config ruff.toml .
 
 test:
-	uvx pytest -q
+	uv run --isolated --with-requirements app/requirements.txt --with-requirements worker/requirements.txt --with pytest pytest -q
 
 ci:
 	uvx ruff check --config ruff.toml --ignore B008 .
 	uvx ruff format --config ruff.toml --check .
-	uvx pytest -q
+	uv run --isolated --with-requirements app/requirements.txt --with-requirements worker/requirements.txt --with pytest pytest -q
 
 obs-up:
 	$(OBS_COMPOSE) up -d --build
@@ -169,6 +171,9 @@ deploy-logs:
 deploy-migrate:
 	$(DEPLOY_COMPOSE) --profile tools run --rm migrate
 
+deploy-create-admin:
+	$(DEPLOY_COMPOSE) exec api python create_admin.py $(ARGS)
+
 deploy-validate:
 	OPSWATCH_ENV_FILE="$(DEPLOY_ENV_FILE)" OPSWATCH_PROJECT_NAME="$(DEPLOY_PROJECT)" ./deploy/scripts/validate_deploy.sh
 
@@ -181,6 +186,9 @@ deploy-restore:
 
 demo-seed:
 	$(COMPOSE) exec -T api python demo_seed.py
+
+create-admin:
+	$(COMPOSE) exec api python create_admin.py $(ARGS)
 
 reset-db:
 	$(COMPOSE) down -v
