@@ -7,8 +7,12 @@ DEPLOY_PROJECT ?= opswatch
 DEPLOY_COMPOSE := docker compose --project-name $(DEPLOY_PROJECT) --env-file $(DEPLOY_ENV_FILE) -f docker-compose.deploy.yml
 DEPLOY_OBS_COMPOSE := docker compose --project-name $(DEPLOY_PROJECT) --env-file $(DEPLOY_ENV_FILE) -f docker-compose.deploy.yml -f docker-compose.deploy.observability.yml --profile observability
 BUILD_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+BUILD_TAG := $(shell git describe --tags --exact-match 2>/dev/null || true)
+LATEST_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || true)
+BUILD_VERSION := $(if $(BUILD_TAG),$(BUILD_TAG),$(if $(LATEST_TAG),$(LATEST_TAG)-$(BUILD_COMMIT),$(if $(filter dev,$(BUILD_COMMIT)),dev,sha-$(BUILD_COMMIT))))
 BUILD_UTC := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-BUILD_METADATA_ENV := APP_COMMIT=$(BUILD_COMMIT) APP_BUILT_AT=$(BUILD_UTC)
+LOCAL_VERSION_ENV := APP_VERSION=$(BUILD_VERSION)
+BUILD_METADATA_ENV := APP_VERSION=$(BUILD_VERSION) APP_COMMIT=$(BUILD_COMMIT) APP_BUILT_AT=$(BUILD_UTC)
 
 .PHONY: help up down restart ps logs api-logs worker-logs scheduler-logs build pull \
         lint fmt test ci reset-db clean volumes obs-up obs-down obs-up-dev-fast showcase-up showcase-obs-up \
@@ -20,14 +24,14 @@ help:
 	@echo "OpsWatch Makefile"
 	@echo ""
 	@echo "Core stack:"
-	@echo "  make up             Start core backend stack"
-	@echo "  make showcase-up    Start core stack with injected git/build metadata"
+	@echo "  make up             Start core backend stack with auto-derived local version"
+	@echo "  make showcase-up    Start core stack with auto-derived version, commit, and build time"
 	@echo "  make down           Stop core backend stack"
 	@echo "  make restart        Restart core backend stack"
 	@echo ""
 	@echo "Observability:"
-	@echo "  make obs-up         Start backend + observability (standard rules)"
-	@echo "  make showcase-obs-up Start backend + observability with injected git/build metadata"
+	@echo "  make obs-up         Start backend + observability with auto-derived local version"
+	@echo "  make showcase-obs-up Start backend + observability with auto-derived version, commit, and build time"
 	@echo "  make obs-up-dev-fast Start backend + observability (dev-fast alert rules)"
 	@echo "  make obs-down       Stop backend + observability stack"
 	@echo ""
@@ -70,7 +74,7 @@ help:
 	@echo "  make clean           Remove containers + volumes"
 
 up:
-	$(COMPOSE) up -d --build
+	$(LOCAL_VERSION_ENV) $(COMPOSE) up -d --build
 
 showcase-up:
 	$(BUILD_METADATA_ENV) $(COMPOSE) up -d --build
@@ -80,7 +84,7 @@ down:
 
 restart:
 	$(COMPOSE) down
-	$(COMPOSE) up -d --build
+	$(LOCAL_VERSION_ENV) $(COMPOSE) up -d --build
 
 ps:
 	$(COMPOSE) ps
@@ -98,7 +102,7 @@ scheduler-logs:
 	$(COMPOSE) logs -f --tail=200 scheduler
 
 build:
-	$(COMPOSE) build --pull
+	$(LOCAL_VERSION_ENV) $(COMPOSE) build --pull
 
 pull:
 	$(COMPOSE) pull
@@ -118,13 +122,13 @@ ci:
 	uv run --isolated --with-requirements app/requirements.txt --with-requirements worker/requirements.txt --with pytest pytest -q
 
 obs-up:
-	$(OBS_COMPOSE) up -d --build
+	$(LOCAL_VERSION_ENV) $(OBS_COMPOSE) up -d --build
 
 showcase-obs-up:
 	$(BUILD_METADATA_ENV) $(OBS_COMPOSE) up -d --build
 
 obs-up-dev-fast:
-	$(OBS_DEV_FAST_COMPOSE) up -d --build
+	$(LOCAL_VERSION_ENV) $(OBS_DEV_FAST_COMPOSE) up -d --build
 
 obs-down:
 	$(OBS_COMPOSE) down

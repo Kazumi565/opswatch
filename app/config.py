@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     opswatch_session_ttl_hours: int = 12
     opswatch_auth_cookie_secure: bool = False
 
-    app_version: str = "0.3.0"
+    app_version: str = "dev"
     app_commit: str = "dev"
     app_built_at: str = "local"
 

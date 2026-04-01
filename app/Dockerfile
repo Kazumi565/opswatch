@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-ARG APP_VERSION=0.2.0
+ARG APP_VERSION=dev
 ARG APP_COMMIT=dev
 ARG APP_BUILT_AT=local
 
