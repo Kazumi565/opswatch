@@ -25,7 +25,7 @@ def purge_modules(prefixes: list[str]) -> None:
 def set_runtime_env(monkeypatch: pytest.MonkeyPatch, database_url: str) -> None:
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
-    monkeypatch.setenv("JWT_SECRET", "demo-seed-secret")
+    monkeypatch.setenv("OPSWATCH_AUTH_SECRET", "demo-seed-secret")
     monkeypatch.setenv("OPSWATCH_API_KEY", "demo-seed-key")
 
 

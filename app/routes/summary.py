@@ -3,12 +3,17 @@ from domain import ACTIVE_INCIDENT_STATES
 from fastapi import APIRouter, Depends
 from models import Incident, Monitor
 from payloads import serialize_incident
+from security import require_authenticated_context
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from routes.maintenance_state import load_active_maintenance_state
 
-router = APIRouter(prefix="/api", tags=["summary"])
+router = APIRouter(
+    prefix="/api",
+    tags=["summary"],
+    dependencies=[Depends(require_authenticated_context)],
+)
 
 
 @router.get("/summary")

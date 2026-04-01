@@ -7,11 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from models import Incident, IncidentEvent, Monitor
 from payloads import serialize_incident
 from schemas import IncidentNoteCreate, IncidentOut
-from security import require_api_key
+from security import AuthContext, require_authenticated_context, require_programmer_context
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-router = APIRouter(prefix="/api/incidents", tags=["incidents"])
+router = APIRouter(
+    prefix="/api/incidents",
+    tags=["incidents"],
+    dependencies=[Depends(require_authenticated_context)],
+)
 
 
 def clamp_limit(limit: int) -> int:
@@ -72,7 +76,7 @@ def get_incident(incident_id: int, db: Session = Depends(get_db)):
 def acknowledge_incident(
     incident_id: int,
     db: Session = Depends(get_db),
-    actor: str = Depends(require_api_key),
+    auth: AuthContext = Depends(require_programmer_context),
 ):
     incident = get_incident_or_404(db, incident_id)
 
@@ -85,14 +89,14 @@ def acknowledge_incident(
             IncidentEvent(
                 incident_id=incident.id,
                 event_type="acknowledged",
-                actor=actor,
+                actor=auth.actor,
                 note=None,
                 created_at=utc_now(),
             )
         )
         record_audit_event(
             db,
-            actor=actor,
+            actor=auth.actor,
             action="incident.acknowledge",
             resource_type="incident",
             resource_id=incident.id,
@@ -109,7 +113,7 @@ def add_incident_note(
     incident_id: int,
     payload: IncidentNoteCreate,
     db: Session = Depends(get_db),
-    actor: str = Depends(require_api_key),
+    auth: AuthContext = Depends(require_programmer_context),
 ):
     incident = get_incident_or_404(db, incident_id)
 
@@ -124,14 +128,14 @@ def add_incident_note(
         IncidentEvent(
             incident_id=incident.id,
             event_type="note_added",
-            actor=actor,
+            actor=auth.actor,
             note=note_text,
             created_at=utc_now(),
         )
     )
     record_audit_event(
         db,
-        actor=actor,
+        actor=auth.actor,
         action="incident.note",
         resource_type="incident",
         resource_id=incident.id,

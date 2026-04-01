@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  auditEventSchema,
+  authMeSchema,
   checkRunSchema,
   incidentSchema,
   monitorSchema,
@@ -8,6 +10,7 @@ import {
   overviewSchema,
   statusSchema,
   summarySchema,
+  userSchema,
   versionSchema,
 } from "@/lib/schemas";
 
@@ -57,7 +60,7 @@ describe("API schemas", () => {
     expect(parsed.overall).toBe("up");
   });
 
-  it("parses summary, overview, incident, runs, monitor, monitor stats and version payloads", () => {
+  it("parses summary, overview, incident, runs, monitor, monitor stats, auth and version payloads", () => {
     expect(
       summarySchema.parse({
         monitors: { total: 1, enabled: 1 },
@@ -193,6 +196,44 @@ describe("API schemas", () => {
     ).toBeTruthy();
 
     expect(versionSchema.parse({ version: "0.2.0", commit: "abc123", built_at: "2026-03-09T00:00:00Z" })).toBeTruthy();
+
+    expect(
+      authMeSchema.parse({
+        id: 1,
+        email: "admin@opswatch.dev",
+        display_name: "Admin",
+        role: "admin",
+        is_active: true,
+        auth_method: "session",
+        last_login_at: "2026-03-09T00:00:00Z",
+        session_expires_at: "2026-03-09T12:00:00Z",
+      }),
+    ).toBeTruthy();
+
+    expect(
+      userSchema.parse({
+        id: 7,
+        email: "user@opswatch.dev",
+        display_name: "User",
+        role: "user",
+        is_active: true,
+        created_at: "2026-03-09T00:00:00Z",
+        updated_at: "2026-03-09T00:00:00Z",
+        last_login_at: null,
+      }),
+    ).toBeTruthy();
+
+    expect(
+      auditEventSchema.parse({
+        id: 99,
+        created_at: "2026-03-09T00:00:00Z",
+        actor: "admin@opswatch.dev",
+        action: "user.create",
+        resource_type: "user",
+        resource_id: 7,
+        summary_json: { role: "user" },
+      }),
+    ).toBeTruthy();
   });
 
   it("rejects invalid payloads", () => {

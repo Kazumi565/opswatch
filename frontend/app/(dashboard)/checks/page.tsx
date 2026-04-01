@@ -1,4 +1,4 @@
-﻿import { ChecksView } from "@/views/checks-view";
+import { ChecksView } from "@/views/checks-view";
 
 function parseSuccess(value: string | string[] | undefined): "all" | "true" | "false" {
   const raw = Array.isArray(value) ? value[0] : value;

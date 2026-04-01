@@ -11,9 +11,11 @@ from deps import get_db
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from models import Monitor
+from payloads import monitor_type_value
 from prometheus_client import Counter, Histogram
 from redis import Redis
 from routes.audit import router as audit_router
+from routes.auth import router as auth_router
 from routes.incidents import router as incidents_router
 from routes.maintenance import router as maintenance_router
 from routes.metrics import router as metrics_router
@@ -22,9 +24,15 @@ from routes.runs import router as runs_router
 from routes.stats import router as stats_router
 from routes.status import router as status_router
 from routes.summary import router as summary_router
+from routes.users import router as users_router
 from rq import Queue
 from schemas import MonitorCreate, MonitorOut, MonitorUpdate
-from security import require_api_key
+from security import (
+    AuthContext,
+    require_admin_context,
+    require_authenticated_context,
+    require_programmer_context,
+)
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -41,6 +49,8 @@ HTTP_LATENCY = Histogram(
 )
 
 app = FastAPI(title="OpsWatch API", version=settings.app_version)
+app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(audit_router)
 app.include_router(incidents_router)
 app.include_router(summary_router)
@@ -180,19 +190,20 @@ def api_version():
 def create_monitor(
     payload: MonitorCreate,
     db: Session = Depends(get_db),
-    actor: str = Depends(require_api_key),
+    auth: AuthContext = Depends(require_admin_context),
 ):
     monitor = Monitor(**payload.model_dump())
     db.add(monitor)
     db.flush()
     record_audit_event(
         db,
-        actor=actor,
+        actor=auth.actor,
         action="monitor.create",
         resource_type="monitor",
         resource_id=monitor.id,
         summary_json={
             "name": monitor.name,
+            "type": monitor_type_value(monitor.type),
             "service": monitor.service,
             "environment": monitor.environment,
             "severity": monitor.severity,
@@ -205,12 +216,19 @@ def create_monitor(
 
 
 @app.get("/api/monitors", response_model=list[MonitorOut])
-def list_monitors(db: Session = Depends(get_db)):
+def list_monitors(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_authenticated_context),
+):
     return list(db.scalars(select(Monitor).order_by(Monitor.id)).all())
 
 
 @app.get("/api/monitors/{monitor_id}", response_model=MonitorOut)
-def get_monitor(monitor_id: int, db: Session = Depends(get_db)):
+def get_monitor(
+    monitor_id: int,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_authenticated_context),
+):
     monitor = db.get(Monitor, monitor_id)
     if not monitor:
         raise HTTPException(status_code=404, detail="Monitor not found")
@@ -222,26 +240,34 @@ def update_monitor(
     monitor_id: int,
     payload: MonitorUpdate,
     db: Session = Depends(get_db),
-    actor: str = Depends(require_api_key),
+    auth: AuthContext = Depends(require_admin_context),
 ):
     monitor = db.get(Monitor, monitor_id)
     if not monitor:
         raise HTTPException(status_code=404, detail="Monitor not found")
 
     data = payload.model_dump(exclude_unset=True)
-    before = {key: getattr(monitor, key) for key in data}
+    before = {
+        key: monitor_type_value(getattr(monitor, key)) if key == "type" else getattr(monitor, key)
+        for key in data
+    }
     for key, value in data.items():
         setattr(monitor, key, value)
 
     record_audit_event(
         db,
-        actor=actor,
+        actor=auth.actor,
         action="monitor.update",
         resource_type="monitor",
         resource_id=monitor.id,
         summary_json={
             "before": before,
-            "after": {key: getattr(monitor, key) for key in data},
+            "after": {
+                key: monitor_type_value(getattr(monitor, key))
+                if key == "type"
+                else getattr(monitor, key)
+                for key in data
+            },
         },
     )
     db.commit()
@@ -253,7 +279,7 @@ def update_monitor(
 def delete_monitor(
     monitor_id: int,
     db: Session = Depends(get_db),
-    actor: str = Depends(require_api_key),
+    auth: AuthContext = Depends(require_admin_context),
 ):
     monitor = db.get(Monitor, monitor_id)
     if not monitor:
@@ -261,6 +287,7 @@ def delete_monitor(
 
     summary = {
         "name": monitor.name,
+        "type": monitor_type_value(monitor.type),
         "service": monitor.service,
         "environment": monitor.environment,
         "severity": monitor.severity,
@@ -268,7 +295,7 @@ def delete_monitor(
     db.delete(monitor)
     record_audit_event(
         db,
-        actor=actor,
+        actor=auth.actor,
         action="monitor.delete",
         resource_type="monitor",
         resource_id=monitor_id,
@@ -282,7 +309,7 @@ def delete_monitor(
 def enqueue_check(
     monitor_id: int,
     db: Session = Depends(get_db),
-    actor: str = Depends(require_api_key),
+    auth: AuthContext = Depends(require_programmer_context),
 ):
     monitor = db.get(Monitor, monitor_id)
     if not monitor:
@@ -293,7 +320,7 @@ def enqueue_check(
     job = queue.enqueue("opswatch_worker.jobs.run_check", monitor_id)
     record_audit_event(
         db,
-        actor=actor,
+        actor=auth.actor,
         action="monitor.run.enqueue",
         resource_type="monitor",
         resource_id=monitor.id,

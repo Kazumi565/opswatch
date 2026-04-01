@@ -88,6 +88,7 @@ def test_deploy_observability_ports_are_localhost_bound():
 def test_makefile_mentions_demo_seed():
     makefile = (ROOT / "scripts" / "makefile").read_text(encoding="utf-8", errors="ignore").lower()
     assert "demo-seed" in makefile, "'demo-seed' target missing from scripts/makefile"
+    assert "create-admin" in makefile, "'create-admin' target missing from scripts/makefile"
 
 
 def test_ci_mentions_frontend_and_compose_smoke():

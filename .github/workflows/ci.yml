@@ -38,19 +38,13 @@ jobs:
       - name: Ruff format (check)
         run: uvx ruff format --config ruff.toml --check .
 
-      - name: Install backend test dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r app/requirements.txt
-          python -m pip install pytest httpx
-
       - name: Pytest
         env:
-          DATABASE_URL: "sqlite+pysqlite:///:memory:"
-          REDIS_URL: "redis://localhost:6379/0"
-          JWT_SECRET: "ci-test-secret"
-          OPSWATCH_API_KEY: "ci-test-api-key"
-        run: python -m pytest -q -s
+          DATABASE_URL: sqlite+pysqlite:///:memory:
+          REDIS_URL: redis://localhost:6379/0
+          OPSWATCH_AUTH_SECRET: ci-test-secret
+          OPSWATCH_API_KEY: ci-test-api-key
+        run: uv run --isolated --with-requirements app/requirements.txt --with-requirements worker/requirements.txt --with pytest python -m pytest -q -s
 
   frontend-quality:
     runs-on: ubuntu-latest
@@ -134,38 +128,72 @@ jobs:
               "DATABASE_URL=postgresql+psycopg://opswatch:change_me@postgres:5432/opswatch",
               "DATABASE_URL=postgresql+psycopg://opswatch:opswatch_ci_password@postgres:5432/opswatch",
           )
-          text = text.replace(
-              "OPSWATCH_API_KEY=replace-with-a-long-random-api-key",
-              "OPSWATCH_API_KEY=ci-smoke-api-key",
-          )
+          text = text.replace("OPSWATCH_AUTH_SECRET=dev_only_change_me", "OPSWATCH_AUTH_SECRET=ci-smoke-secret")
+          text = text.replace("OPSWATCH_API_KEY=optional-admin-automation-key", "OPSWATCH_API_KEY=ci-smoke-api-key")
           env_file.write_text(text)
           PY
 
       - name: Start core stack
         run: docker compose up -d --build postgres redis migrate api worker scheduler
 
+      - name: Bootstrap first admin
+        run: |
+          docker compose exec -T api python create_admin.py \
+            --email admin@example.com \
+            --display-name "CI Admin" \
+            --password ci-admin-password
+
       - name: Smoke test boot path
         run: |
           python - <<'PY'
           import json
           import time
+          import urllib.error
+          import urllib.parse
           import urllib.request
 
           BASE = "http://127.0.0.1:8000"
-          HEADERS = {
-              "Content-Type": "application/json",
-              "X-API-Key": "ci-smoke-api-key",
-          }
+          cookies = {}
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener = urllib.request.build_opener(NoRedirect())
+
+          def cookie_header():
+              if not cookies:
+                  return ""
+              return "; ".join(f"{name}={value}" for name, value in cookies.items())
+
+          def update_cookies(response):
+              for raw_cookie in response.headers.get_all("Set-Cookie", []):
+                  first = raw_cookie.split(";", 1)[0]
+                  if "=" not in first:
+                      continue
+                  name, value = first.split("=", 1)
+                  if value:
+                      cookies[name] = value
+                  else:
+                      cookies.pop(name, None)
 
           def request_json(method: str, path: str, payload=None):
               body = None if payload is None else json.dumps(payload).encode()
+              headers = {}
+              if payload is not None:
+                  headers["Content-Type"] = "application/json"
+              if cookies:
+                  headers["Cookie"] = cookie_header()
+              if method != "GET":
+                  headers["X-CSRF-Token"] = cookies.get("opswatch_csrf", "")
               request = urllib.request.Request(
                   BASE + path,
                   data=body,
                   method=method,
-                  headers=HEADERS if payload is not None or method != "GET" else {},
+                  headers=headers,
               )
-              with urllib.request.urlopen(request, timeout=10) as response:
+              with opener.open(request, timeout=10) as response:
+                  update_cookies(response)
                   return response.status, json.loads(response.read().decode() or "null")
 
           deadline = time.time() + 90
@@ -180,6 +208,23 @@ jobs:
               if time.time() > deadline:
                   raise SystemExit("API readiness check timed out")
               time.sleep(2)
+
+          status, me = request_json(
+              "POST",
+              "/api/auth/login",
+              {
+                  "email": "admin@example.com",
+                  "password": "ci-admin-password",
+              },
+          )
+          assert status == 200, me
+          assert me["role"] == "admin"
+          assert cookies.get("opswatch_session")
+          assert cookies.get("opswatch_csrf")
+
+          status, me = request_json("GET", "/api/auth/me")
+          assert status == 200, me
+          assert me["email"] == "admin@example.com"
 
           status, created = request_json(
               "POST",
@@ -218,6 +263,9 @@ jobs:
 
           assert runs[0]["success"] is False
           assert "dns target must be hostname only" in (runs[0]["error"] or "")
+
+          status, _ = request_json("POST", "/api/auth/logout")
+          assert status == 204
           PY
 
       - name: Print compose logs on failure

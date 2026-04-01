@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { fetchCurrentUser } from "@/lib/server-auth";
+import { AuditView } from "@/views/audit-view";
 
 function cookieHeaderFromStore(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   return cookieStore
@@ -10,8 +11,11 @@ function cookieHeaderFromStore(cookieStore: Awaited<ReturnType<typeof cookies>>)
     .join("; ");
 }
 
-export default async function HomePage() {
+export default async function AuditPage() {
   const cookieStore = await cookies();
   const currentUser = await fetchCurrentUser(cookieHeaderFromStore(cookieStore));
-  redirect(currentUser ? "/overview" : "/login");
+  if (!currentUser || currentUser.role !== "admin") {
+    redirect("/overview");
+  }
+  return <AuditView />;
 }

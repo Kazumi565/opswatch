@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const userRoleSchema = z.enum(["user", "programmer", "admin"]);
+
 export const incidentEventSchema = z.object({
   id: z.number(),
   incident_id: z.number(),
@@ -192,6 +194,38 @@ export const versionSchema = z.object({
   built_at: z.string(),
 });
 
+export const authMeSchema = z.object({
+  id: z.number().nullable(),
+  email: z.string(),
+  display_name: z.string(),
+  role: userRoleSchema,
+  is_active: z.boolean(),
+  auth_method: z.enum(["session", "api_key"]),
+  last_login_at: z.string().nullable(),
+  session_expires_at: z.string().nullable(),
+});
+
+export const userSchema = z.object({
+  id: z.number(),
+  email: z.string(),
+  display_name: z.string(),
+  role: userRoleSchema,
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  last_login_at: z.string().nullable(),
+});
+
+export const auditEventSchema = z.object({
+  id: z.number(),
+  created_at: z.string(),
+  actor: z.string(),
+  action: z.string(),
+  resource_type: z.string(),
+  resource_id: z.number(),
+  summary_json: z.record(z.string(), z.unknown()),
+});
+
 export type CheckRun = z.infer<typeof checkRunSchema>;
 export type Incident = z.infer<typeof incidentSchema>;
 export type Monitor = z.infer<typeof monitorSchema>;
@@ -201,3 +235,6 @@ export type OverviewResponse = z.infer<typeof overviewSchema>;
 export type StatusResponse = z.infer<typeof statusSchema>;
 export type SummaryResponse = z.infer<typeof summarySchema>;
 export type VersionResponse = z.infer<typeof versionSchema>;
+export type AuthMe = z.infer<typeof authMeSchema>;
+export type User = z.infer<typeof userSchema>;
+export type AuditEvent = z.infer<typeof auditEventSchema>;

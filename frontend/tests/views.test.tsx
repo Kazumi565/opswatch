@@ -4,10 +4,18 @@ import { render, screen } from "@testing-library/react";
 import { SWRConfig } from "swr";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { AuthProvider } from "@/lib/auth";
+import type { AuthMe } from "@/lib/schemas";
 import { ChecksView } from "@/views/checks-view";
 import { IncidentsView } from "@/views/incidents-view";
 import { MonitorsView } from "@/views/monitors-view";
 import { OverviewView } from "@/views/overview-view";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: vi.fn(),
+  }),
+}));
 
 vi.mock("recharts", () => {
   const Div = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
@@ -48,7 +56,19 @@ function mockFetch(routes: RoutePayload[]) {
   });
 }
 
-function renderWithSWR(ui: React.ReactElement) {
+function renderWithSWR(
+  ui: React.ReactElement,
+  currentUser: AuthMe = {
+    id: 1,
+    email: "admin@opswatch.dev",
+    display_name: "Admin",
+    role: "admin",
+    is_active: true,
+    auth_method: "session",
+    last_login_at: "2026-03-09T00:00:00Z",
+    session_expires_at: "2026-03-09T12:00:00Z",
+  },
+) {
   return render(
     <SWRConfig
       value={{
@@ -57,7 +77,7 @@ function renderWithSWR(ui: React.ReactElement) {
         revalidateOnFocus: false,
       }}
     >
-      {ui}
+      <AuthProvider currentUser={currentUser}>{ui}</AuthProvider>
     </SWRConfig>,
   );
 }
@@ -277,6 +297,17 @@ const monitorPayload = [
   },
 ];
 
+const maintenancePayload = [
+  {
+    id: 8,
+    monitor_id: 1,
+    starts_at: "2026-03-09T00:00:00Z",
+    ends_at: "2026-03-09T01:00:00Z",
+    reason: "deploy",
+    created_at: "2026-03-09T00:00:00Z",
+  },
+];
+
 describe("dashboard views", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -318,6 +349,8 @@ describe("dashboard views", () => {
       { match: "/api/stats/overview", body: overviewPayload },
       { match: "/api/monitors/1/stats", body: monitorStatsPayload },
       { match: "/api/monitors/1/runs", body: runsPayload },
+      { match: "/api/monitors/1", body: monitorPayload[0] },
+      { match: "/api/maintenance", body: maintenancePayload },
     ]);
 
     renderWithSWR(
@@ -325,7 +358,7 @@ describe("dashboard views", () => {
     );
 
     expect(await screen.findByTestId("monitors-view")).toBeInTheDocument();
-    expect(screen.getByText("Selected monitor")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Selected monitor" })).toBeInTheDocument();
     expect(screen.getByText("Runbook")).toBeInTheDocument();
   });
 
@@ -402,5 +435,47 @@ describe("dashboard views", () => {
     renderWithSWR(<ChecksView success="all" monitorId={null} limit={100} />);
 
     expect(await screen.findByText("No check runs for the selected filters.")).toBeInTheDocument();
+  });
+
+  it("renders incident response controls for programmer users", async () => {
+    mockFetch([
+      { match: "/api/incidents/open", body: incidentsPayload },
+      { match: "/api/incidents/11", body: incidentDetailPayload },
+    ]);
+
+    renderWithSWR(<IncidentsView scope="open" selectedIncidentId={11} />, {
+      id: 2,
+      email: "programmer@opswatch.dev",
+      display_name: "Programmer",
+      role: "programmer",
+      is_active: true,
+      auth_method: "session",
+      last_login_at: "2026-03-09T00:00:00Z",
+      session_expires_at: "2026-03-09T12:00:00Z",
+    });
+
+    expect(await screen.findByText("Add note")).toBeInTheDocument();
+  });
+
+  it("hides incident response controls for read-only users", async () => {
+    mockFetch([
+      { match: "/api/incidents/open", body: incidentsPayload },
+      { match: "/api/incidents/11", body: incidentDetailPayload },
+    ]);
+
+    renderWithSWR(<IncidentsView scope="open" selectedIncidentId={11} />, {
+      id: 3,
+      email: "user@opswatch.dev",
+      display_name: "User",
+      role: "user",
+      is_active: true,
+      auth_method: "session",
+      last_login_at: "2026-03-09T00:00:00Z",
+      session_expires_at: "2026-03-09T12:00:00Z",
+    });
+
+    await screen.findByTestId("incidents-view");
+    expect(screen.queryByText("Add note")).not.toBeInTheDocument();
+    expect(screen.queryByText("Acknowledge incident")).not.toBeInTheDocument();
   });
 });

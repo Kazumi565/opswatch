@@ -19,6 +19,12 @@ class MonitorType(enum.StrEnum):
     dns = "dns"
 
 
+class UserRole(enum.StrEnum):
+    user = "user"
+    programmer = "programmer"
+    admin = "admin"
+
+
 class Monitor(Base):
     __tablename__ = "monitors"
 
@@ -99,7 +105,7 @@ class IncidentEvent(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     incident_id: Mapped[int] = mapped_column(ForeignKey("incidents.id"), nullable=False)
     event_type: Mapped[str] = mapped_column(String(40), nullable=False)
-    actor: Mapped[str] = mapped_column(String(80), nullable=False, default="system")
+    actor: Mapped[str] = mapped_column(String(320), nullable=False, default="system")
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
@@ -130,8 +136,50 @@ class AuditEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
-    actor: Mapped[str] = mapped_column(String(80), nullable=False)
+    actor: Mapped[str] = mapped_column(String(320), nullable=False)
     action: Mapped[str] = mapped_column(String(80), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(80), nullable=False)
     resource_id: Mapped[int] = mapped_column(Integer, nullable=False)
     summary_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole, name="userrole"),
+        nullable=False,
+        default=UserRole.user,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    sessions: Mapped[list["AuthSession"]] = relationship(back_populates="user")
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="sessions")
