@@ -28,6 +28,10 @@
   migrate:
     build:
       context: ./app
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        APP_COMMIT: ${APP_COMMIT:-dev}
+        APP_BUILT_AT: ${APP_BUILT_AT:-local}
     command: ["sh", "-c", "alembic -c alembic.ini upgrade head"]
     volumes:
       - ./app:/app
@@ -39,13 +43,18 @@
   api:
     build:
       context: ./app
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        APP_COMMIT: ${APP_COMMIT:-dev}
+        APP_BUILT_AT: ${APP_BUILT_AT:-local}
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./app:/app
     env_file: .env
     environment:
-      APP_COMMIT: ${APP_COMMIT:-}
-      APP_BUILT_AT: ${APP_BUILT_AT:-}
+      APP_VERSION: ${APP_VERSION:-dev}
+      APP_COMMIT: ${APP_COMMIT:-dev}
+      APP_BUILT_AT: ${APP_BUILT_AT:-local}
     depends_on:
       postgres:
         condition: service_healthy

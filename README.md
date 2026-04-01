@@ -72,7 +72,13 @@ make up
 
 This boots `postgres` and `redis`, runs `alembic upgrade head` in the one-shot `migrate` container, and only then starts the API, worker, and scheduler.
 
-For a polished demo or release-style local run that automatically injects the current git SHA and a UTC build timestamp into the API footer, use:
+Local make-based Compose runs derive `APP_VERSION` automatically from git metadata:
+
+- exact tag at `HEAD`, for example `v0.3.0`
+- otherwise latest tag plus short SHA, for example `v0.3.0-a1b2c3d`
+- otherwise short-SHA fallback, for example `sha-a1b2c3d`
+
+For a polished demo or release-style local run that also injects the current git SHA and a UTC build timestamp into the API footer, use:
 
 ```bash
 make showcase-up
