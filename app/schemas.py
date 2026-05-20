@@ -250,3 +250,17 @@ class AuthMeOut(BaseModel):
     auth_method: Literal["session", "api_key"]
     last_login_at: datetime | None = None
     session_expires_at: datetime | None = None
+
+
+class RuntimeInfoOut(BaseModel):
+    deployment_mode: str
+    orchestrator: str
+    cloud_provider: str
+    namespace: str | None = None
+    pod_name: str | None = None
+    node_name: str | None = None
+    image_tag: str
+    version: str
+    commit: str
+    built_at: str
+    health_status: Literal["ok"]

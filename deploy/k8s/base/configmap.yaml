@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opswatch-config
+data:
+  POSTGRES_DB: opswatch
+  POSTGRES_USER: opswatch
+  REDIS_URL: redis://opswatch-redis:6379/0
+  OPSWATCH_DEPLOYMENT_MODE: local-k3d
+  OPSWATCH_ORCHESTRATOR: kubernetes
+  OPSWATCH_CLOUD_PROVIDER: local
+  OPSWATCH_SESSION_TTL_HOURS: "12"
+  OPSWATCH_AUTH_COOKIE_SECURE: "false"
+  SCHEDULER_POLL_SECONDS: "5"
+  OPSWATCH_IMAGE_TAG: local
+  APP_VERSION: v0.4.0-local
+  APP_COMMIT: local
+  APP_BUILT_AT: local
+  OPSWATCH_API_ORIGIN: http://opswatch-api:8000
+  NEXT_TELEMETRY_DISABLED: "1"

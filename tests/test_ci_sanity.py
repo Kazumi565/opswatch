@@ -59,6 +59,21 @@ def test_deploy_assets_exist():
     )
 
 
+def test_kubernetes_and_terraform_assets_exist():
+    assert (ROOT / "deploy" / "k8s" / "README.md").exists(), "deploy/k8s/README.md missing"
+    assert (ROOT / "deploy" / "k8s" / "base" / "kustomization.yaml").exists(), (
+        "Kubernetes base kustomization missing"
+    )
+    assert (ROOT / "deploy" / "k8s" / "overlays" / "local" / "kustomization.yaml").exists(), (
+        "Kubernetes local overlay missing"
+    )
+    assert (ROOT / "deploy" / "k8s" / "overlays" / "aws" / "kustomization.yaml").exists(), (
+        "Kubernetes AWS overlay missing"
+    )
+    assert (ROOT / "infra" / "aws-k3s" / "versions.tf").exists(), "Terraform versions.tf missing"
+    assert (ROOT / "infra" / "aws-k3s" / "README.md").exists(), "Terraform README missing"
+
+
 def test_deploy_compose_keeps_internal_services_non_public_by_default():
     deploy_compose = (
         (ROOT / "docker-compose.deploy.yml").read_text(encoding="utf-8", errors="ignore").lower()
@@ -89,6 +104,8 @@ def test_makefile_mentions_demo_seed():
     makefile = (ROOT / "scripts" / "makefile").read_text(encoding="utf-8", errors="ignore").lower()
     assert "demo-seed" in makefile, "'demo-seed' target missing from scripts/makefile"
     assert "create-admin" in makefile, "'create-admin' target missing from scripts/makefile"
+    assert "k8s-render" in makefile, "'k8s-render' target missing from scripts/makefile"
+    assert "tf-validate" in makefile, "'tf-validate' target missing from scripts/makefile"
 
 
 def test_ci_mentions_frontend_and_compose_smoke():
@@ -97,3 +114,5 @@ def test_ci_mentions_frontend_and_compose_smoke():
     )
     assert "npm --prefix frontend run build" in workflow
     assert "docker compose up -d --build postgres redis migrate api worker scheduler" in workflow
+    assert "make k8s-render" in workflow
+    assert "make tf-validate" in workflow

@@ -18,3 +18,10 @@ frontend/.turbo/
 deploy/.env.vm
 deploy/backups/
 deploy/systemd/opswatch.systemd.env
+
+# Terraform local state/cache
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example

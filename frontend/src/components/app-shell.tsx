@@ -62,6 +62,7 @@ export function AppShell({ currentUser, children }: AppShellProps) {
     { href: "/monitors", label: "Monitors", visible: true },
     { href: "/incidents", label: "Incidents", visible: true },
     { href: "/checks", label: "Checks", visible: true },
+    { href: "/runtime", label: "Runtime", visible: true },
     { href: "/profile", label: "Profile", visible: true },
     { href: "/users", label: "Users", visible: currentUser.role === "admin" },
     { href: "/audit", label: "Audit", visible: currentUser.role === "admin" },

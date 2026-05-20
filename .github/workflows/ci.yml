@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
 
 permissions:
@@ -40,10 +40,10 @@ jobs:
 
       - name: Pytest
         env:
-          DATABASE_URL: sqlite+pysqlite:///:memory:
-          REDIS_URL: redis://localhost:6379/0
-          OPSWATCH_AUTH_SECRET: ci-test-secret
-          OPSWATCH_API_KEY: ci-test-api-key
+          DATABASE_URL: "sqlite+pysqlite:///:memory:"
+          REDIS_URL: "redis://localhost:6379/0"
+          OPSWATCH_AUTH_SECRET: "ci-test-secret"
+          OPSWATCH_API_KEY: "ci-test-api-key"
         run: uv run --isolated --with-requirements app/requirements.txt --with-requirements worker/requirements.txt --with pytest python -m pytest -q -s
 
   frontend-quality:
@@ -102,6 +102,31 @@ jobs:
           bash -n deploy/scripts/backup_postgres.sh
           bash -n deploy/scripts/restore_postgres.sh
           bash -n deploy/scripts/validate_deploy.sh
+
+  cloudops-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.32.0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+
+      - name: Render Kubernetes overlays
+        run: make k8s-render
+
+      - name: Terraform format check
+        run: make tf-fmt-check
+
+      - name: Terraform validate
+        run: make tf-validate
 
   compose-smoke:
     runs-on: ubuntu-latest
