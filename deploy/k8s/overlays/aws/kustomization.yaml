@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: opswatch-api
+    newName: ghcr.io/your-github-org-or-user/opswatch-api
+    newTag: v0.4.0
+  - name: opswatch-worker
+    newName: ghcr.io/your-github-org-or-user/opswatch-worker
+    newTag: v0.4.0
+  - name: opswatch-scheduler
+    newName: ghcr.io/your-github-org-or-user/opswatch-scheduler
+    newTag: v0.4.0
+  - name: opswatch-frontend
+    newName: ghcr.io/your-github-org-or-user/opswatch-frontend
+    newTag: v0.4.0
+patches:
+  - path: runtime-config-patch.yaml
+  - path: secret-placeholder-patch.yaml
+  - path: ingress-patch.yaml

@@ -103,6 +103,31 @@ jobs:
           bash -n deploy/scripts/restore_postgres.sh
           bash -n deploy/scripts/validate_deploy.sh
 
+  cloudops-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.32.0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+
+      - name: Render Kubernetes overlays
+        run: make k8s-render
+
+      - name: Terraform format check
+        run: make tf-fmt-check
+
+      - name: Terraform validate
+        run: make tf-validate
+
   compose-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 15

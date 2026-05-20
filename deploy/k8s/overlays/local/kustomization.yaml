@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: opswatch-api
+    newName: opswatch-api
+    newTag: local
+  - name: opswatch-worker
+    newName: opswatch-worker
+    newTag: local
+  - name: opswatch-scheduler
+    newName: opswatch-scheduler
+    newTag: local
+  - name: opswatch-frontend
+    newName: opswatch-frontend
+    newTag: local

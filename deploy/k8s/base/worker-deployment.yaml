@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opswatch-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opswatch-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opswatch-worker
+    spec:
+      serviceAccountName: opswatch
+      containers:
+        - name: worker
+          image: opswatch-worker:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9101
+          envFrom:
+            - configMapRef:
+                name: opswatch-config
+            - secretRef:
+                name: opswatch-secret
+          env:
+            - name: PYTHONPATH
+              value: /worker
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi

@@ -6,7 +6,17 @@ It demonstrates the full operational loop:
 
 `define monitor -> migrate -> schedule checks -> execute checks -> evaluate incidents -> acknowledge and track -> audit control-plane changes -> expose metrics -> visualize -> alert`
 
-## What 0.3.0 Adds
+## What 0.4.0 Adds
+
+- Kubernetes deployment assets for API, frontend, worker, scheduler, Postgres, Redis, migration jobs, backups, services, PVCs, probes, and ingress
+- local k3d/k3s acceptance path that runs the full stack without AWS cost
+- AWS-ready single-EC2 k3s Terraform module with a zero-resource default safety switch
+- authenticated Runtime dashboard page showing deployment mode, orchestrator, cloud provider, Kubernetes pod/node metadata, image tag, and build metadata
+- `GET /api/runtime` for runtime identity and cloud/deployment metadata
+- CI validation for rendered Kubernetes overlays and Terraform format/validation
+- Hard $0 project rule: AWS is optional and documented, but live AWS resources are not required for acceptance
+
+## What 0.3.0 Added
 
 - human authentication with server-issued `HttpOnly` session cookies
 - fixed roles: `user`, `programmer`, `admin`
@@ -44,6 +54,11 @@ Deployment stack:
 - [docker-compose.deploy.observability.yml](/home/mihai/projects/opswatch/docker-compose.deploy.observability.yml)
 - [deploy/README.md](/home/mihai/projects/opswatch/deploy/README.md)
 
+CloudOps stack:
+
+- Kubernetes base and overlays in [deploy/k8s](/home/mihai/projects/opswatch/deploy/k8s)
+- AWS-ready Terraform in [infra/aws-k3s](/home/mihai/projects/opswatch/infra/aws-k3s)
+
 ## Quickstart
 
 ### 1. Prepare env
@@ -74,8 +89,8 @@ This boots `postgres` and `redis`, runs `alembic upgrade head` in the one-shot `
 
 Local make-based Compose runs derive `APP_VERSION` automatically from git metadata:
 
-- exact tag at `HEAD`, for example `v0.3.0`
-- otherwise latest tag plus short SHA, for example `v0.3.0-a1b2c3d`
+- exact tag at `HEAD`, for example `v0.4.0`
+- otherwise latest tag plus short SHA, for example `v0.4.0-a1b2c3d`
 - otherwise short-SHA fallback, for example `sha-a1b2c3d`
 
 For a polished demo or release-style local run that also injects the current git SHA and a UTC build timestamp into the API footer, use:
@@ -160,7 +175,7 @@ Observability URLs:
 
 ## Auth Overview
 
-OpsWatch `0.3.0` uses DB-backed opaque sessions for human access:
+OpsWatch uses DB-backed opaque sessions for human access:
 
 - `POST /api/auth/login` validates email/password, sets `opswatch_session`, and returns the current user
 - `POST /api/auth/logout` revokes the current session and clears cookies
@@ -366,12 +381,27 @@ docker compose start api
 - `GET /api/status`
 - `GET /api/summary`
 - `GET /api/stats/overview`
+- `GET /api/runtime`
 - `GET /api/version`
 - `GET /metrics`
 
+## Kubernetes and AWS-Ready Path
+
+OpsWatch 0.4.0 keeps the required acceptance path local and cost-free:
+
+```bash
+make k8s-render
+make tf-fmt-check
+make tf-validate
+```
+
+For a local Kubernetes smoke test, use k3d/k3s and the guide in [deploy/k8s/README.md](/home/mihai/projects/opswatch/deploy/k8s/README.md).
+
+The AWS Terraform module in [infra/aws-k3s](/home/mihai/projects/opswatch/infra/aws-k3s) defaults to `create_infrastructure = false`, so validation creates no AWS resources. Before any live AWS demo, set billing alerts, confirm current Free Tier eligibility, and plan to destroy the host immediately afterward.
+
 ## Release Verification Checklist
 
-Run these before calling `0.3.0` shippable:
+Run these before calling `0.4.0` shippable:
 
 ```bash
 uvx ruff check --config ruff.toml --ignore B008 .
@@ -381,6 +411,9 @@ npm --prefix frontend run lint
 npm --prefix frontend run typecheck
 npm --prefix frontend run test
 npm --prefix frontend run build
+make k8s-render
+make tf-fmt-check
+make tf-validate
 ```
 
 Smoke the real boot path:
@@ -423,6 +456,12 @@ make obs-up-dev-fast
 make frontend-install
 make frontend-test
 make frontend-build
+make k8s-render
+make k8s-local-up
+make k8s-status
+make k8s-local-down
+make tf-fmt-check
+make tf-validate
 make deploy-migrate DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
 make deploy-create-admin DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env ARGS='--email admin@example.com --display-name "Ops Admin"'
 make deploy-up DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env

@@ -248,11 +248,73 @@ def test_read_routes_require_auth(app_runtime, client: TestClient):
 
     assert client.get("/health").status_code == 200
     assert client.get("/api/version").status_code == 200
+    assert client.get("/api/runtime").status_code == 401
     assert client.get("/api/monitors").status_code == 401
     assert client.get(f"/api/monitors/{seeded.monitor_id}").status_code == 401
     assert client.get("/api/summary").status_code == 401
     assert client.get("/api/status").status_code == 401
     assert client.get("/api/maintenance").status_code == 401
+
+
+def test_runtime_reports_local_fallbacks_for_authenticated_users(
+    app_runtime,
+    client: TestClient,
+):
+    login(
+        client,
+        email=create_user(app_runtime, email="runtime-user@opswatch.dev", role="user").email,
+        password="password123",
+    )
+
+    response = client.get("/api/runtime")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "deployment_mode": "compose",
+        "orchestrator": "docker-compose",
+        "cloud_provider": "local",
+        "namespace": None,
+        "pod_name": None,
+        "node_name": None,
+        "image_tag": "dev",
+        "version": "dev",
+        "commit": "dev",
+        "built_at": "local",
+        "health_status": "ok",
+    }
+
+
+def test_runtime_reports_kubernetes_environment_metadata(
+    app_runtime,
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("OPSWATCH_DEPLOYMENT_MODE", "aws-k3s")
+    monkeypatch.setenv("OPSWATCH_ORCHESTRATOR", "kubernetes")
+    monkeypatch.setenv("OPSWATCH_CLOUD_PROVIDER", "aws")
+    monkeypatch.setenv("OPSWATCH_K8S_NAMESPACE", "opswatch")
+    monkeypatch.setenv("OPSWATCH_K8S_POD_NAME", "api-abc123")
+    monkeypatch.setenv("OPSWATCH_K8S_NODE_NAME", "ip-10-0-1-10")
+    monkeypatch.setenv("OPSWATCH_IMAGE_TAG", "v0.4.0")
+    login(
+        client,
+        email=create_user(app_runtime, email="runtime-admin@opswatch.dev", role="admin").email,
+        password="password123",
+    )
+
+    response = client.get("/api/runtime")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["deployment_mode"] == "aws-k3s"
+    assert payload["orchestrator"] == "kubernetes"
+    assert payload["cloud_provider"] == "aws"
+    assert payload["namespace"] == "opswatch"
+    assert payload["pod_name"] == "api-abc123"
+    assert payload["node_name"] == "ip-10-0-1-10"
+    assert payload["image_tag"] == "v0.4.0"
+    assert payload["health_status"] == "ok"
 
 
 def test_user_role_is_read_only(app_runtime, client: TestClient):

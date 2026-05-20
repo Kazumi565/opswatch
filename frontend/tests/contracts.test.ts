@@ -8,6 +8,7 @@ import {
   monitorSchema,
   monitorStatsSchema,
   overviewSchema,
+  runtimeSchema,
   statusSchema,
   summarySchema,
   userSchema,
@@ -196,6 +197,22 @@ describe("API schemas", () => {
     ).toBeTruthy();
 
     expect(versionSchema.parse({ version: "0.2.0", commit: "abc123", built_at: "2026-03-09T00:00:00Z" })).toBeTruthy();
+
+    expect(
+      runtimeSchema.parse({
+        deployment_mode: "local-k3d",
+        orchestrator: "kubernetes",
+        cloud_provider: "local",
+        namespace: "opswatch",
+        pod_name: "opswatch-api-abc123",
+        node_name: "k3d-opswatch-server-0",
+        image_tag: "v0.4.0",
+        version: "0.4.0",
+        commit: "abc123",
+        built_at: "2026-03-09T00:00:00Z",
+        health_status: "ok",
+      }),
+    ).toBeTruthy();
 
     expect(
       authMeSchema.parse({

@@ -48,6 +48,49 @@ make deploy-validate DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
 
 Migrations are explicit by design. Keep migration failures isolated from service startup.
 
+## Kubernetes Local Validation
+
+Render both overlays before applying anything:
+
+```bash
+make k8s-render
+```
+
+For a local k3d/k3s smoke test:
+
+```bash
+make k8s-local-up
+make k8s-status
+curl -H "Host: opswatch.localhost" http://127.0.0.1:8080/health/ready
+```
+
+Bootstrap and seed through the API pod when needed:
+
+```bash
+kubectl -n opswatch exec deploy/opswatch-api -- python demo_seed.py
+kubectl -n opswatch exec -it deploy/opswatch-api -- python create_admin.py --email admin@example.com --display-name "Ops Admin"
+```
+
+Clean up:
+
+```bash
+make k8s-local-down
+```
+
+The Runtime dashboard should show `orchestrator=kubernetes`, namespace `opswatch`, and the current API pod/node metadata.
+
+## AWS-Ready Terraform Guardrail
+
+The AWS k3s Terraform module is validateable without creating resources:
+
+```bash
+make tf-fmt-check
+make tf-validate
+terraform -chdir=infra/aws-k3s plan
+```
+
+The checked-in default is `create_infrastructure = false`. Do not run `apply` unless AWS Budgets/Billing alerts are configured, current Free Tier eligibility is confirmed, and a destroy window is planned.
+
 ## Backup Policy
 
 - Format: `pg_dump -Fc` custom dumps (`.dump`)

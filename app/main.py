@@ -21,6 +21,7 @@ from routes.maintenance import router as maintenance_router
 from routes.metrics import router as metrics_router
 from routes.overview import router as overview_router
 from routes.runs import router as runs_router
+from routes.runtime import router as runtime_router
 from routes.stats import router as stats_router
 from routes.status import router as status_router
 from routes.summary import router as summary_router
@@ -57,6 +58,7 @@ app.include_router(summary_router)
 app.include_router(runs_router)
 app.include_router(stats_router)
 app.include_router(overview_router)
+app.include_router(runtime_router)
 app.include_router(status_router)
 app.include_router(maintenance_router)
 app.include_router(metrics_router)

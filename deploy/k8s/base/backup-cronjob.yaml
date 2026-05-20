@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: opswatch-postgres-backup
+spec:
+  schedule: "30 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: opswatch-postgres-backup
+        spec:
+          serviceAccountName: opswatch
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: postgres:16
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: POSTGRES_DB
+                  valueFrom:
+                    configMapKeyRef:
+                      name: opswatch-config
+                      key: POSTGRES_DB
+                - name: POSTGRES_USER
+                  valueFrom:
+                    configMapKeyRef:
+                      name: opswatch-config
+                      key: POSTGRES_USER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: opswatch-secret
+                      key: POSTGRES_PASSWORD
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  pg_dump -h opswatch-postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc >"/backups/opswatch-${timestamp}.dump"
+                  find /backups -type f -name 'opswatch-*.dump' -mtime +14 -delete
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 96Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: opswatch-backups

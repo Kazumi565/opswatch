@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: opswatch-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: opswatch-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opswatch-redis
+spec:
+  selector:
+    app.kubernetes.io/name: opswatch-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opswatch-api
+spec:
+  selector:
+    app.kubernetes.io/name: opswatch-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opswatch-worker
+spec:
+  selector:
+    app.kubernetes.io/name: opswatch-worker
+  ports:
+    - name: metrics
+      port: 9101
+      targetPort: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opswatch-frontend
+spec:
+  selector:
+    app.kubernetes.io/name: opswatch-frontend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http

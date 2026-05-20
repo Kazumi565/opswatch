@@ -10,6 +10,7 @@ import { ChecksView } from "@/views/checks-view";
 import { IncidentsView } from "@/views/incidents-view";
 import { MonitorsView } from "@/views/monitors-view";
 import { OverviewView } from "@/views/overview-view";
+import { RuntimeView } from "@/views/runtime-view";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -308,6 +309,20 @@ const maintenancePayload = [
   },
 ];
 
+const runtimePayload = {
+  deployment_mode: "local-k3d",
+  orchestrator: "kubernetes",
+  cloud_provider: "local",
+  namespace: "opswatch",
+  pod_name: "opswatch-api-abc123",
+  node_name: "k3d-opswatch-server-0",
+  image_tag: "v0.4.0",
+  version: "0.4.0",
+  commit: "abc123",
+  built_at: "2026-03-09T00:00:00Z",
+  health_status: "ok",
+};
+
 describe("dashboard views", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -388,6 +403,18 @@ describe("dashboard views", () => {
     expect(screen.getByText("#20")).toBeInTheDocument();
     expect(screen.getAllByText("API").length).toBeGreaterThan(0);
     expect(screen.getByText(/The UI refetches API data every 30 seconds/i)).toBeInTheDocument();
+  });
+
+  it("renders runtime page with Kubernetes metadata", async () => {
+    mockFetch([{ match: "/api/runtime", body: runtimePayload }]);
+
+    renderWithSWR(<RuntimeView />);
+
+    expect(await screen.findByTestId("runtime-view")).toBeInTheDocument();
+    expect(screen.getByText("local-k3d")).toBeInTheDocument();
+    expect(screen.getByText("kubernetes")).toBeInTheDocument();
+    expect(screen.getByText("opswatch-api-abc123")).toBeInTheDocument();
+    expect(screen.getByText("v0.4.0")).toBeInTheDocument();
   });
 
   it("shows loading state while waiting for overview data", () => {

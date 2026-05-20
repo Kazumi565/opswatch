@@ -194,6 +194,20 @@ export const versionSchema = z.object({
   built_at: z.string(),
 });
 
+export const runtimeSchema = z.object({
+  deployment_mode: z.string(),
+  orchestrator: z.string(),
+  cloud_provider: z.string(),
+  namespace: z.string().nullable(),
+  pod_name: z.string().nullable(),
+  node_name: z.string().nullable(),
+  image_tag: z.string(),
+  version: z.string(),
+  commit: z.string(),
+  built_at: z.string(),
+  health_status: z.enum(["ok"]),
+});
+
 export const authMeSchema = z.object({
   id: z.number().nullable(),
   email: z.string(),
@@ -235,6 +249,7 @@ export type OverviewResponse = z.infer<typeof overviewSchema>;
 export type StatusResponse = z.infer<typeof statusSchema>;
 export type SummaryResponse = z.infer<typeof summarySchema>;
 export type VersionResponse = z.infer<typeof versionSchema>;
+export type RuntimeInfo = z.infer<typeof runtimeSchema>;
 export type AuthMe = z.infer<typeof authMeSchema>;
 export type User = z.infer<typeof userSchema>;
 export type AuditEvent = z.infer<typeof auditEventSchema>;

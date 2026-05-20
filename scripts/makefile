@@ -2,6 +2,11 @@ SHELL := /bin/bash
 COMPOSE := docker compose
 OBS_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile observability
 OBS_DEV_FAST_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.observability.dev-fast.yml --profile observability
+KUBECTL ?= kubectl
+TERRAFORM ?= terraform
+K8S_LOCAL_OVERLAY := deploy/k8s/overlays/local
+K8S_AWS_OVERLAY := deploy/k8s/overlays/aws
+TF_AWS_K3S_DIR := infra/aws-k3s
 DEPLOY_ENV_FILE ?= deploy/.env.vm
 DEPLOY_PROJECT ?= opswatch
 DEPLOY_COMPOSE := docker compose --project-name $(DEPLOY_PROJECT) --env-file $(DEPLOY_ENV_FILE) -f docker-compose.deploy.yml
@@ -17,6 +22,7 @@ BUILD_METADATA_ENV := APP_VERSION=$(BUILD_VERSION) APP_COMMIT=$(BUILD_COMMIT) AP
 .PHONY: help up down restart ps logs api-logs worker-logs scheduler-logs build pull \
         lint fmt test ci reset-db clean volumes obs-up obs-down obs-up-dev-fast showcase-up showcase-obs-up \
         frontend-up frontend-down frontend-install frontend-lint frontend-typecheck frontend-test frontend-build \
+        k8s-render k8s-local-up k8s-local-down k8s-status tf-fmt-check tf-validate \
         demo-seed create-admin deploy-create-admin deploy-up deploy-up-obs deploy-down deploy-down-obs deploy-ps deploy-logs deploy-migrate \
         deploy-validate deploy-backup deploy-restore
 
@@ -34,6 +40,14 @@ help:
 	@echo "  make showcase-obs-up Start backend + observability with auto-derived version, commit, and build time"
 	@echo "  make obs-up-dev-fast Start backend + observability (dev-fast alert rules)"
 	@echo "  make obs-down       Stop backend + observability stack"
+	@echo ""
+	@echo "Kubernetes / AWS-ready IaC:"
+	@echo "  make k8s-render     Render local and AWS Kustomize overlays"
+	@echo "  make k8s-local-up   Apply local Kubernetes overlay and wait for core rollouts"
+	@echo "  make k8s-local-down Delete local Kubernetes overlay"
+	@echo "  make k8s-status     Show Kubernetes runtime objects in the opswatch namespace"
+	@echo "  make tf-fmt-check   Check Terraform formatting for the AWS k3s module"
+	@echo "  make tf-validate    Initialize and validate the AWS k3s module without a backend"
 	@echo ""
 	@echo "Deployment:"
 	@echo "  make deploy-migrate DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env  Run alembic upgrade head (explicit one-off)"
@@ -153,6 +167,34 @@ frontend-test:
 
 frontend-build:
 	npm --prefix frontend run build
+
+k8s-render:
+	$(KUBECTL) kustomize $(K8S_LOCAL_OVERLAY) >/tmp/opswatch-k8s-local.yaml
+	$(KUBECTL) kustomize $(K8S_AWS_OVERLAY) >/tmp/opswatch-k8s-aws.yaml
+	@echo "Rendered local overlay: /tmp/opswatch-k8s-local.yaml"
+	@echo "Rendered AWS overlay: /tmp/opswatch-k8s-aws.yaml"
+
+k8s-local-up:
+	-$(KUBECTL) delete job opswatch-migrate -n opswatch --ignore-not-found
+	$(KUBECTL) apply -k $(K8S_LOCAL_OVERLAY)
+	$(KUBECTL) -n opswatch wait --for=condition=complete job/opswatch-migrate --timeout=180s
+	$(KUBECTL) -n opswatch rollout status deployment/opswatch-api --timeout=180s
+	$(KUBECTL) -n opswatch rollout status deployment/opswatch-worker --timeout=180s
+	$(KUBECTL) -n opswatch rollout status deployment/opswatch-scheduler --timeout=180s
+	$(KUBECTL) -n opswatch rollout status deployment/opswatch-frontend --timeout=180s
+
+k8s-local-down:
+	$(KUBECTL) delete -k $(K8S_LOCAL_OVERLAY) --ignore-not-found
+
+k8s-status:
+	$(KUBECTL) -n opswatch get pods,svc,ingress,jobs,cronjobs,pvc
+
+tf-fmt-check:
+	$(TERRAFORM) -chdir=$(TF_AWS_K3S_DIR) fmt -check -recursive
+
+tf-validate:
+	$(TERRAFORM) -chdir=$(TF_AWS_K3S_DIR) init -backend=false -input=false
+	$(TERRAFORM) -chdir=$(TF_AWS_K3S_DIR) validate
 
 deploy-up:
 	$(DEPLOY_COMPOSE) up -d

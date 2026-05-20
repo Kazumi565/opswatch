@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opswatch-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opswatch-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opswatch-frontend
+    spec:
+      serviceAccountName: opswatch
+      containers:
+        - name: frontend
+          image: opswatch-frontend:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: PORT
+              value: "3000"
+            - name: OPSWATCH_API_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: opswatch-config
+                  key: OPSWATCH_API_ORIGIN
+            - name: NEXT_TELEMETRY_DISABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: opswatch-config
+                  key: NEXT_TELEMETRY_DISABLED
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
