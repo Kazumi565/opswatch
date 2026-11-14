@@ -265,7 +265,13 @@ def enforce_csrf(request: Request, auth: AuthContext) -> None:
         return
     csrf_header = request.headers.get(CSRF_HEADER_NAME)
     csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
-    if not csrf_header or not csrf_cookie or not secrets.compare_digest(csrf_header, csrf_cookie):
+    if (
+        not csrf_header
+        or not csrf_cookie
+        or not csrf_header.isascii()
+        or not csrf_cookie.isascii()
+        or not secrets.compare_digest(csrf_header, csrf_cookie)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="csrf validation failed",

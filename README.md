@@ -1,8 +1,10 @@
 # OpsWatch
 
-OpsWatch is a local-first monitoring and incident platform built as a production-ops showcase.
+OpsWatch runs scheduled checks, records failures and tracks incidents in a Next.js dashboard. A FastAPI API manages monitors and incidents, PostgreSQL stores the history, and workers use Redis for the job queue.
 
-It demonstrates the full operational loop:
+Run it locally with Docker or Kubernetes. The repository also includes an optional AWS Terraform module; it has not been validated as a live production deployment.
+
+The workflow covers:
 
 `define monitor -> migrate -> schedule checks -> execute checks -> evaluate incidents -> acknowledge and track -> audit control-plane changes -> expose metrics -> visualize -> alert`
 
@@ -30,7 +32,7 @@ It demonstrates the full operational loop:
 
 ## Services
 
-Core stack in [docker-compose.yml](/home/mihai/projects/opswatch/docker-compose.yml):
+Core stack in [docker-compose.yml](docker-compose.yml):
 
 - `postgres`: state store
 - `redis`: queue backend
@@ -41,7 +43,7 @@ Core stack in [docker-compose.yml](/home/mihai/projects/opswatch/docker-compose.
 - `prober`: probe-related scaffold
 - `frontend`: optional profile on `http://localhost:3001`
 
-Observability overlay in [docker-compose.observability.yml](/home/mihai/projects/opswatch/docker-compose.observability.yml):
+Observability overlay in [docker-compose.observability.yml](docker-compose.observability.yml):
 
 - `prometheus`
 - `alertmanager`
@@ -50,14 +52,14 @@ Observability overlay in [docker-compose.observability.yml](/home/mihai/projects
 
 Deployment stack:
 
-- [docker-compose.deploy.yml](/home/mihai/projects/opswatch/docker-compose.deploy.yml)
-- [docker-compose.deploy.observability.yml](/home/mihai/projects/opswatch/docker-compose.deploy.observability.yml)
-- [deploy/README.md](/home/mihai/projects/opswatch/deploy/README.md)
+- [docker-compose.deploy.yml](docker-compose.deploy.yml)
+- [docker-compose.deploy.observability.yml](docker-compose.deploy.observability.yml)
+- [deploy/README.md](deploy/README.md)
 
 CloudOps stack:
 
-- Kubernetes base and overlays in [deploy/k8s](/home/mihai/projects/opswatch/deploy/k8s)
-- AWS-ready Terraform in [infra/aws-k3s](/home/mihai/projects/opswatch/infra/aws-k3s)
+- Kubernetes base and overlays in [deploy/k8s](deploy/k8s)
+- AWS-ready Terraform in [infra/aws-k3s](infra/aws-k3s)
 
 ## Quickstart
 
@@ -140,7 +142,7 @@ cp .env.example .env
 make showcase-up
 curl http://localhost:8000/ready
 make demo-seed
-make create-admin ARGS='--email admin@example.com --display-name "Ops Admin" --password change-me-now'
+make create-admin ARGS='--email admin@example.com --display-name "Ops Admin"'
 docker compose --profile frontend up -d frontend
 ```
 
@@ -287,7 +289,7 @@ docker compose --profile frontend up -d frontend
 
 Use the deployment guide for production-like VM setup:
 
-- [deploy/README.md](/home/mihai/projects/opswatch/deploy/README.md)
+- [deploy/README.md](deploy/README.md)
 
 Key deployment points:
 
@@ -395,9 +397,9 @@ make tf-fmt-check
 make tf-validate
 ```
 
-For a local Kubernetes smoke test, use k3d/k3s and the guide in [deploy/k8s/README.md](/home/mihai/projects/opswatch/deploy/k8s/README.md).
+For a local Kubernetes smoke test, use k3d/k3s and the guide in [deploy/k8s/README.md](deploy/k8s/README.md).
 
-The AWS Terraform module in [infra/aws-k3s](/home/mihai/projects/opswatch/infra/aws-k3s) defaults to `create_infrastructure = false`, so validation creates no AWS resources. Before any live AWS demo, set billing alerts, confirm current Free Tier eligibility, and plan to destroy the host immediately afterward.
+The AWS Terraform module in [infra/aws-k3s](infra/aws-k3s) defaults to `create_infrastructure = false`, so validation creates no AWS resources. Before any live AWS demo, set billing alerts, confirm current Free Tier eligibility, and plan to destroy the host immediately afterward.
 
 ## Release Verification Checklist
 
@@ -421,7 +423,7 @@ Smoke the real boot path:
 ```bash
 docker compose up -d --build postgres redis migrate api worker scheduler
 curl http://localhost:8000/ready
-make create-admin ARGS='--email admin@example.com --display-name "Ops Admin" --password change-me-now'
+make create-admin ARGS='--email admin@example.com --display-name "Ops Admin"'
 docker compose --profile frontend up -d frontend
 docker compose down -v
 ```
@@ -440,7 +442,7 @@ Expected signals:
 
 ## Helper Commands
 
-The root [Makefile](/home/mihai/projects/opswatch/Makefile) proxies to [scripts/makefile](/home/mihai/projects/opswatch/scripts/makefile).
+The root [Makefile](Makefile) proxies to [scripts/makefile](scripts/makefile).
 
 Useful targets:
 

@@ -543,6 +543,21 @@ def test_csrf_is_required_for_session_mutations_but_not_api_key_fallback(
     assert session_without_csrf.status_code == 403
     assert session_without_csrf.json()["detail"] == "csrf validation failed"
 
+    # HTTP permits non-ASCII header bytes, but compare_digest(str, str) does not.
+    malformed_csrf = client.post("/api/auth/logout", headers=[(b"X-CSRF-Token", b"\xff")])
+    assert malformed_csrf.status_code == 403
+    assert malformed_csrf.json()["detail"] == "csrf validation failed"
+
+    session_token = client.cookies.get("opswatch_session")
+    malformed_cookie = client.post(
+        "/api/auth/logout",
+        headers=[
+            (b"X-CSRF-Token", b"valid-ascii"),
+            (b"Cookie", f"opswatch_session={session_token}; opswatch_csrf=".encode() + b"\xff"),
+        ],
+    )
+    assert malformed_cookie.status_code == 403
+
     api_key_fallback = client.post(
         "/api/monitors",
         headers={"X-API-Key": "test-api-key"},

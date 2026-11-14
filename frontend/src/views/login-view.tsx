@@ -4,13 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { apiRequest, ApiError } from "@/lib/http";
-
-function safeNextPath(nextPath: string | null | undefined) {
-  if (!nextPath || !nextPath.startsWith("/")) {
-    return "/overview";
-  }
-  return nextPath;
-}
+import { safeNextPath } from "@/lib/navigation";
 
 export function LoginView({ nextPath }: Readonly<{ nextPath: string | null }>) {
   const router = useRouter();

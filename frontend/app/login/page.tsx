@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { safeNextPath } from "@/lib/navigation";
 import { fetchCurrentUser } from "@/lib/server-auth";
 import { LoginView } from "@/views/login-view";
 
@@ -11,14 +12,6 @@ function cookieHeaderFromStore(cookieStore: Awaited<ReturnType<typeof cookies>>)
     .join("; ");
 }
 
-function safeNextPath(value: string | string[] | undefined) {
-  const nextPath = Array.isArray(value) ? value[0] : value;
-  if (!nextPath || !nextPath.startsWith("/")) {
-    return "/overview";
-  }
-  return nextPath;
-}
-
 export default async function LoginPage({
   searchParams,
 }: {
@@ -27,7 +20,7 @@ export default async function LoginPage({
   const cookieStore = await cookies();
   const currentUser = await fetchCurrentUser(cookieHeaderFromStore(cookieStore));
   const params = await searchParams;
-  const nextPath = safeNextPath(params.next);
+  const nextPath = safeNextPath(Array.isArray(params.next) ? params.next[0] : params.next);
 
   if (currentUser) {
     redirect(nextPath);
