@@ -1,65 +1,14 @@
 # OpsWatch
 
-OpsWatch runs scheduled checks, records failures and tracks incidents in a Next.js dashboard. A FastAPI API manages monitors and incidents, PostgreSQL stores the history, and workers use Redis for the job queue.
+[![CI](https://github.com/Kazumi565/opswatch/actions/workflows/ci.yml/badge.svg)](https://github.com/Kazumi565/opswatch/actions/workflows/ci.yml)
 
-Run it locally with Docker or Kubernetes. The repository also includes an optional AWS Terraform module; it has not been validated as a live production deployment.
+OpsWatch checks whether services are available and keeps a history of failures and incidents. Its dashboard lets you inspect a failed check, acknowledge an incident and follow what happened next.
 
-The workflow covers:
+**FastAPI · Next.js · PostgreSQL · Redis · Docker**
 
-`define monitor -> migrate -> schedule checks -> execute checks -> evaluate incidents -> acknowledge and track -> audit control-plane changes -> expose metrics -> visualize -> alert`
+[Run locally](#quickstart) · [Explore the demo](#demo-from-fresh-clone) · [Services](#services) · [Deployment guide](deploy/README.md)
 
-## What 0.4.0 Adds
-
-- Kubernetes deployment assets for API, frontend, worker, scheduler, Postgres, Redis, migration jobs, backups, services, PVCs, probes, and ingress
-- local k3d/k3s acceptance path that runs the full stack without AWS cost
-- AWS-ready single-EC2 k3s Terraform module with a zero-resource default safety switch
-- authenticated Runtime dashboard page showing deployment mode, orchestrator, cloud provider, Kubernetes pod/node metadata, image tag, and build metadata
-- `GET /api/runtime` for runtime identity and cloud/deployment metadata
-- CI validation for rendered Kubernetes overlays and Terraform format/validation
-- Hard $0 project rule: AWS is optional and documented, but live AWS resources are not required for acceptance
-
-## What 0.3.0 Added
-
-- human authentication with server-issued `HttpOnly` session cookies
-- fixed roles: `user`, `programmer`, `admin`
-- protected dashboard routes and authenticated read APIs
-- backend role enforcement for every control-plane action
-- admin user management and bootstrap-first-admin flow
-- audit coverage for auth and user-management changes
-- lightweight CSRF protection on cookie-authenticated mutating routes
-- expired-session cleanup during normal auth flow
-- all `0.2.0` monitoring, incident, maintenance, audit, and ownership features remain intact
-
-## Services
-
-Core stack in [docker-compose.yml](docker-compose.yml):
-
-- `postgres`: state store
-- `redis`: queue backend
-- `migrate`: one-shot Alembic upgrade step
-- `api`: FastAPI control plane
-- `worker`: RQ worker
-- `scheduler`: due-check enqueue loop
-- `prober`: probe-related scaffold
-- `frontend`: optional profile on `http://localhost:3001`
-
-Observability overlay in [docker-compose.observability.yml](docker-compose.observability.yml):
-
-- `prometheus`
-- `alertmanager`
-- `alert-receiver`
-- `grafana`
-
-Deployment stack:
-
-- [docker-compose.deploy.yml](docker-compose.deploy.yml)
-- [docker-compose.deploy.observability.yml](docker-compose.deploy.observability.yml)
-- [deploy/README.md](deploy/README.md)
-
-CloudOps stack:
-
-- Kubernetes base and overlays in [deploy/k8s](deploy/k8s)
-- AWS-ready Terraform in [infra/aws-k3s](infra/aws-k3s)
+The local demo includes healthy services, an open incident, an acknowledged incident and a maintenance window. It runs without a cloud account. Docker and Kubernetes are supported locally; the optional AWS Terraform setup has not been validated in production.
 
 ## Quickstart
 
@@ -174,6 +123,37 @@ Observability URLs:
 - Alertmanager: `http://localhost:9093`
 - Grafana: `http://localhost:3000`
 - Alert receiver: `http://localhost:8088`
+
+## Services
+
+Core stack in [docker-compose.yml](docker-compose.yml):
+
+- `postgres`: state store
+- `redis`: queue backend
+- `migrate`: one-shot Alembic upgrade step
+- `api`: FastAPI control plane
+- `worker`: RQ worker
+- `scheduler`: due-check enqueue loop
+- `prober`: probe-related scaffold
+- `frontend`: optional profile on `http://localhost:3001`
+
+Observability overlay in [docker-compose.observability.yml](docker-compose.observability.yml):
+
+- `prometheus`
+- `alertmanager`
+- `alert-receiver`
+- `grafana`
+
+Deployment stack:
+
+- [docker-compose.deploy.yml](docker-compose.deploy.yml)
+- [docker-compose.deploy.observability.yml](docker-compose.deploy.observability.yml)
+- [deploy/README.md](deploy/README.md)
+
+CloudOps stack:
+
+- Kubernetes base and overlays in [deploy/k8s](deploy/k8s)
+- AWS-ready Terraform in [infra/aws-k3s](infra/aws-k3s)
 
 ## Auth Overview
 
@@ -471,3 +451,30 @@ make deploy-up-obs DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
 make deploy-validate DEPLOY_ENV_FILE=/etc/opswatch/opswatch.env
 make ci
 ```
+
+<details>
+<summary>Release history: 0.4.0 and 0.3.0</summary>
+
+## What 0.4.0 Adds
+
+- Kubernetes deployment assets for API, frontend, worker, scheduler, Postgres, Redis, migration jobs, backups, services, PVCs, probes, and ingress
+- local k3d/k3s acceptance path that runs the full stack without AWS cost
+- AWS-ready single-EC2 k3s Terraform module with a zero-resource default safety switch
+- authenticated Runtime dashboard page showing deployment mode, orchestrator, cloud provider, Kubernetes pod/node metadata, image tag, and build metadata
+- `GET /api/runtime` for runtime identity and cloud/deployment metadata
+- CI validation for rendered Kubernetes overlays and Terraform format/validation
+- Hard $0 project rule: AWS is optional and documented, but live AWS resources are not required for acceptance
+
+## What 0.3.0 Added
+
+- human authentication with server-issued `HttpOnly` session cookies
+- fixed roles: `user`, `programmer`, `admin`
+- protected dashboard routes and authenticated read APIs
+- backend role enforcement for every control-plane action
+- admin user management and bootstrap-first-admin flow
+- audit coverage for auth and user-management changes
+- lightweight CSRF protection on cookie-authenticated mutating routes
+- expired-session cleanup during normal auth flow
+- all `0.2.0` monitoring, incident, maintenance, audit, and ownership features remain intact
+
+</details>
